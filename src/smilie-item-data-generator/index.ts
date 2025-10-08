@@ -1,246 +1,169 @@
-import puppeteer, { Browser, Page } from "puppeteer";
-import { Item, items } from "./item";
+import "dotenv/config";
+import * as fs from "fs";
+import * as path from "path";
 
-type StockRow = {
-  itemCode: string;
-  description: string;
-  quantity: number;
-  price: number;
-};
+import loadProducts from "./data-loader/load-products";
+import { generateCsv } from "./helpers/csv";
 
-type ItemStockResult = {
-  code: string;
-  imageUrl?: string;
-  results: StockRow[];
-};
+import { OpenAiMarketingContentGenerator } from "./open-ai/marketing-content-generator";
+import { scrapeMyGiftDetails } from "./scrappers/product-details-scraper";
+import {
+  createBrowser,
+  scrapeProducts,
+} from "./scrappers/product-variants-scraper";
+import type { MyGiftProductDetails, ProductStockResult } from "./types";
 
-const BASE_URL = "https://mygiftuniversal.com.my";
-const CHECK_STOCK_PATH = "/admin_sg.php";
-const USERNAME = "agent";
-const PASSWORD = "0000";
-const CHECK_STOCK_SEARCH_SELECTOR = 'input[name="search"]';
-const RESULTS_ROW_SELECTOR = "#listDiv tr[id^='tr_']";
-
-async function login(
-  page: Page,
-  username: string,
-  password: string
-): Promise<void> {
-  await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector("#UserName1", { timeout: 15000 });
-  await page.type("#UserName1", username, { delay: 25 });
-  await page.type("#Pass1", password, { delay: 25 });
-
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: "domcontentloaded" }),
-    page.click("#Submit1"),
-  ]);
-
-  if (!page.url().includes("calculator.php")) {
-    throw new Error("Login failed: expected to land on calculator page.");
-  }
+function createTimestampedFilename(prefix: string, extension: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  return `${prefix}-${timestamp}.${extension}`;
 }
 
-async function ensureCheckStockPage(page: Page): Promise<void> {
-  if (!page.url().includes(CHECK_STOCK_PATH)) {
-    await page.goto(`${BASE_URL}${CHECK_STOCK_PATH}`, {
-      waitUntil: "domcontentloaded",
+function createDetailLookup(
+  detailRecords: MyGiftProductDetails[]
+): Map<string, MyGiftProductDetails> {
+  return new Map(
+    detailRecords
+      .filter((detail) => detail.code)
+      .map((detail) => [detail.code.trim().toLowerCase(), detail])
+  );
+}
+
+function mergeStockWithDetails(
+  stockResults: ProductStockResult[],
+  detailLookup: Map<string, MyGiftProductDetails>
+): ProductStockResult[] {
+  return stockResults.map((stockItem) => {
+    const detail = detailLookup.get(stockItem.code.trim().toLowerCase());
+    const primaryImage = detail?.images?.[0] ?? stockItem.imageUrl;
+    const imageSet = new Set<string>();
+
+    const addIfPresent = (value?: string): void => {
+      if (value) {
+        imageSet.add(value);
+      }
+    };
+
+    addIfPresent(primaryImage);
+    (stockItem.images ?? []).forEach(addIfPresent);
+    (detail?.images ?? []).forEach(addIfPresent);
+    addIfPresent(stockItem.imageUrl);
+
+    return {
+      ...stockItem,
+      imageUrl: primaryImage,
+      myGift: detail ?? stockItem.myGift ?? null,
+      images: Array.from(imageSet),
+    };
+  });
+}
+
+function appendMissingDetails(
+  itemsWithExistingDetails: ProductStockResult[],
+  detailRecords: MyGiftProductDetails[]
+): ProductStockResult[] {
+  for (const detail of detailRecords) {
+    const normalized = detail.code.trim().toLowerCase();
+    const alreadyIncluded = itemsWithExistingDetails.some(
+      (item) => item.code.trim().toLowerCase() === normalized
+    );
+    if (alreadyIncluded) {
+      continue;
+    }
+
+    const imageSet = new Set<string>(detail.images ?? []);
+    const primaryImage = detail.images?.[0] ?? "";
+
+    itemsWithExistingDetails.push({
+      code: detail.code,
+      imageUrl: primaryImage,
+      results: [],
+      marketingContent: null,
+      myGift: detail,
+      images: Array.from(imageSet),
     });
   }
 
-  await page.waitForSelector(CHECK_STOCK_SEARCH_SELECTOR, { timeout: 15000 });
+  return itemsWithExistingDetails;
 }
 
-async function searchStockForItem(
-  page: Page,
-  code: string
-): Promise<StockRow[]> {
-  await ensureCheckStockPage(page);
+const waitFor = (ms: number) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
-  await page.focus(CHECK_STOCK_SEARCH_SELECTOR);
+async function populateOpenAIMarketingCopy(
+  itemsWithDetails: ProductStockResult[],
+  imageDelayMs = 500
+): Promise<void> {
+  for (const item of itemsWithDetails) {
+    const selectedImage = item.myGift?.images?.[0] ?? item.images?.[0];
 
-  const searchPrefix = code.trim().toUpperCase();
-
-  const navigationPromise = page
-    .waitForNavigation({
-      waitUntil: "domcontentloaded",
-      timeout: 45000,
-    })
-    .catch(() => null);
-
-  await page.evaluate(
-    (selector, value) => {
-      const input = document.querySelector<HTMLInputElement>(selector);
-      if (!input) {
-        throw new Error("Search input not found");
-      }
-
-      input.value = value;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      input.dispatchEvent(new Event("change", { bubbles: true }));
-
-      const form =
-        input.form ||
-        document.querySelector<HTMLFormElement>("#control_panel");
-
-      if (!form) {
-        throw new Error("Check Stock form not found");
-      }
-
-      if (typeof form.requestSubmit === "function") {
-        form.requestSubmit();
-      } else {
-        form.submit();
-      }
-    },
-    CHECK_STOCK_SEARCH_SELECTOR,
-    code
-  );
-
-  await navigationPromise;
-
-  try {
-    await page.waitForFunction(
-      (rowSelector, prefix, noRecordText) => {
-        const container = document.querySelector("#listDiv");
-        if (!container) {
-          return false;
-        }
-        const text = container.textContent ?? "";
-        if (text.includes(noRecordText)) {
-          return true;
-        }
-
-        const rows = Array.from(
-          document.querySelectorAll<HTMLTableRowElement>(rowSelector)
-        );
-
-        if (!rows.length) {
-          return false;
-        }
-
-        return rows.some((row) => {
-          const firstCell = row.querySelector<HTMLTableCellElement>(
-            "td.database_content"
-          );
-          return (
-            firstCell?.textContent?.trim().toUpperCase().startsWith(prefix) ?? false
-          );
-        });
-      },
-      { timeout: 45000 },
-      RESULTS_ROW_SELECTOR,
-      searchPrefix,
-      "----- No Record -----"
-    );
-  } catch (error) {
-    const snippet =
-      (await page.$eval(
-        "#listDiv",
-        (table) => table.textContent?.slice(0, 200) ?? ""
-      )) || "";
-    throw new Error(
-      `Timed out waiting for refreshed results for ${code}. Table snippet: ${snippet}`
-    );
-  }
-
-  const rows = await page.$$eval(
-    RESULTS_ROW_SELECTOR,
-    (tableRows, prefix) =>
-      tableRows
-        .map((row) => {
-          const cells = Array.from(
-            row.querySelectorAll<HTMLTableCellElement>("td.database_content")
-          );
-
-          const itemCode = cells[0]?.textContent?.trim() ?? "";
-          if (!itemCode.toUpperCase().startsWith(prefix)) {
-            return null;
-          }
-
-          return {
-            itemCode,
-            description: cells[1]?.textContent?.trim() ?? "",
-            quantityText: cells[2]?.textContent?.trim() ?? "",
-            priceText: cells[3]?.textContent?.trim() ?? "",
-          };
-        })
-        .filter((row): row is {
-          itemCode: string;
-          description: string;
-          quantityText: string;
-          priceText: string;
-        } => row !== null),
-    searchPrefix
-  );
-
-  if (rows.length === 0) {
-    const noRecord =
-      (await page.$eval(
-        "#listDiv",
-        (table) => table.textContent?.includes("----- No Record -----") ?? false
-      )) || false;
-    if (noRecord) {
-      return [];
-    }
-  }
-
-  return rows.map((row) => ({
-    itemCode: row.itemCode,
-    description: row.description,
-    quantity: Number(row.quantityText.replace(/,/g, "")) || 0,
-    price: Number(row.priceText.replace(/[^0-9.]/g, "")) || 0,
-  }));
-}
-
-async function scrapeItems(
-  browser: Browser,
-  itemList: Item[]
-): Promise<ItemStockResult[]> {
-  const page = await browser.newPage();
-  page.setDefaultTimeout(30000);
-  page.setDefaultNavigationTimeout(45000);
-  await page.setUserAgent(
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-  );
-
-  await login(page, USERNAME, PASSWORD);
-  await ensureCheckStockPage(page);
-
-  const results: ItemStockResult[] = [];
-
-  for (const item of itemList) {
     try {
-      console.log(`Searching for item: ${item.code}`);
-      const stockRows = await searchStockForItem(page, item.code);
-      results.push({
+      const openAiMarketingContentGenerator =
+        new OpenAiMarketingContentGenerator();
+      const copy = await openAiMarketingContentGenerator.run({
         code: item.code,
-        imageUrl: item.imageUrl,
-        results: stockRows,
+        detail: item.myGift ?? null,
+        imageUrl: selectedImage ?? undefined,
       });
-      console.log(`Found ${stockRows.length} results for ${item.code}`);
+
+      if (copy) {
+        item.marketingContent = copy;
+      }
     } catch (error) {
-      results.push({
-        code: item.code,
-        imageUrl: item.imageUrl,
-        results: [],
-      });
-      console.error(`Failed to retrieve stock for ${item.code}:`, error);
+      console.error(
+        `Failed to generate marketing copy for ${item.code}:`,
+        error
+      );
     }
 
-    // Add delay between requests to avoid overwhelming the server
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (imageDelayMs > 0) {
+      await waitFor(imageDelayMs);
+    }
   }
+}
 
-  await page.close();
-  return results;
+function writeOutputsToDisk(items: ProductStockResult[]): void {
+  const csvContent = generateCsv(items);
+  const csvFilename = createTimestampedFilename(
+    "mygift-stock-and-specs",
+    "csv"
+  );
+  const csvPath = path.join(process.cwd(), csvFilename);
+
+  fs.writeFileSync(csvPath, csvContent, "utf8");
+  console.log(`\nCSV file generated: ${csvFilename}`);
+  console.log(`File path: ${csvPath}`);
+
+  const jsonFilename = `${csvFilename.replace(/\.csv$/i, "")}.json`;
+  const jsonPath = path.join(process.cwd(), jsonFilename);
+  fs.writeFileSync(jsonPath, JSON.stringify(items, null, 2), "utf8");
+  console.log(`\nJSON file generated: ${jsonFilename}`);
+  console.log(`File path: ${jsonPath}`);
+
+  console.log("\nCombined Output:");
+  console.log(JSON.stringify(items, null, 2));
 }
 
 export async function run(): Promise<void> {
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await createBrowser();
+  let detailRecords: MyGiftProductDetails[] = [];
   try {
-    const data = await scrapeItems(browser, items);
-    console.log(JSON.stringify(data, null, 2));
+    const products = loadProducts();
+    const stockResults = await scrapeProducts(browser, products);
+    try {
+      detailRecords = await scrapeMyGiftDetails(browser, products);
+    } catch (error) {
+      console.error("MyGift detail scraping failed:", error);
+    }
+
+    const detailByCode = createDetailLookup(detailRecords);
+    const stockWithDetails = mergeStockWithDetails(stockResults, detailByCode);
+    const catalogWithDetails = appendMissingDetails(
+      [...stockWithDetails],
+      detailRecords
+    );
+
+    await populateOpenAIMarketingCopy(catalogWithDetails);
+    writeOutputsToDisk(catalogWithDetails);
   } finally {
     await browser.close();
   }
@@ -253,4 +176,11 @@ if (require.main === module) {
   });
 }
 
-export { searchStockForItem };
+export {
+  ProductDetailsScrapper as MyGiftUniversalScraper,
+  scrapeMyGiftDetails,
+} from "./scrappers/product-details-scraper";
+export {
+  ProductVariantsScraper as ItemVariantsScraper,
+  scrapeProducts as scrapeItems,
+} from "./scrappers/product-variants-scraper";

@@ -14,7 +14,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "puppeteer": "^24.23.0"
+    "dotenv": "^17.2.3",
+    "puppeteer": "^24.23.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "@types/node": "^24.7.0",
