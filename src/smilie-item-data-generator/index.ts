@@ -19,18 +19,18 @@ function createTimestampedFilename(prefix: string, extension: string): string {
 }
 
 function createDetailLookup(
-  detailRecords: MyGiftProductDetails[]
+  detailRecords: MyGiftProductDetails[],
 ): Map<string, MyGiftProductDetails> {
   return new Map(
     detailRecords
       .filter((detail) => detail.code)
-      .map((detail) => [detail.code.trim().toLowerCase(), detail])
+      .map((detail) => [detail.code.trim().toLowerCase(), detail]),
   );
 }
 
 function mergeStockWithDetails(
   stockResults: ProductStockResult[],
-  detailLookup: Map<string, MyGiftProductDetails>
+  detailLookup: Map<string, MyGiftProductDetails>,
 ): ProductStockResult[] {
   return stockResults.map((stockItem) => {
     const detail = detailLookup.get(stockItem.code.trim().toLowerCase());
@@ -59,12 +59,12 @@ function mergeStockWithDetails(
 
 function appendMissingDetails(
   itemsWithExistingDetails: ProductStockResult[],
-  detailRecords: MyGiftProductDetails[]
+  detailRecords: MyGiftProductDetails[],
 ): ProductStockResult[] {
   for (const detail of detailRecords) {
     const normalized = detail.code.trim().toLowerCase();
     const alreadyIncluded = itemsWithExistingDetails.some(
-      (item) => item.code.trim().toLowerCase() === normalized
+      (item) => item.code.trim().toLowerCase() === normalized,
     );
     if (alreadyIncluded) {
       continue;
@@ -91,7 +91,7 @@ const waitFor = (ms: number) =>
 
 async function populateOpenAIMarketingCopy(
   itemsWithDetails: ProductStockResult[],
-  imageDelayMs = 500
+  imageDelayMs = 500,
 ): Promise<void> {
   for (const item of itemsWithDetails) {
     const selectedImage = item.myGift?.images?.[0] ?? item.images?.[0];
@@ -111,7 +111,7 @@ async function populateOpenAIMarketingCopy(
     } catch (error) {
       console.error(
         `Failed to generate marketing copy for ${item.code}:`,
-        error
+        error,
       );
     }
 
@@ -125,7 +125,7 @@ function writeOutputsToDisk(items: ProductStockResult[]): void {
   const csvContent = generateCsv(items);
   const csvFilename = createTimestampedFilename(
     "mygift-stock-and-specs",
-    "csv"
+    "csv",
   );
   const csvPath = path.join(process.cwd(), csvFilename);
 
@@ -159,7 +159,7 @@ export async function run(): Promise<void> {
     const stockWithDetails = mergeStockWithDetails(stockResults, detailByCode);
     const catalogWithDetails = appendMissingDetails(
       [...stockWithDetails],
-      detailRecords
+      detailRecords,
     );
 
     await populateOpenAIMarketingCopy(catalogWithDetails);
