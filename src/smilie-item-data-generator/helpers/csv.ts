@@ -68,7 +68,8 @@ function buildProductSpecs(detail?: ProductStockResult["myGift"]): string {
 
 export function generateCsv(data: ProductStockResult[]): string {
   const headers = [
-    "Search Code",
+    "Essential",
+    "Item Code",
     "Item SKU",
     "Parent Cat",
     "Sub Cat",
@@ -79,7 +80,7 @@ export function generateCsv(data: ProductStockResult[]): string {
     "Product Specs",
     "SEO Title",
     "Product Title",
-    "Product Description",
+    "Product Descrption",
     "Long Product Description",
     "Meta Description",
   ];
@@ -90,54 +91,57 @@ export function generateCsv(data: ProductStockResult[]): string {
     const productSpecs = buildProductSpecs(item.myGift ?? null);
     const marketing = item.marketingContent ?? null;
 
-    if (item.results.length === 0) {
-      const row = [
-        item.code, // Search Code
-        "", // Item SKU
-        "", // Parent Cat
-        "", // Sub Cat
-        "", // Price
-        "", // Quantity
-        "", // Colour
-        "", // Hex code
-        productSpecs,
-        marketing?.seoTitle ?? "",
-        marketing?.productTitle ?? "",
-        marketing?.productDescription ?? "",
-        marketing?.longProductDescription ?? "",
-        marketing?.metaDescription ?? "",
-      ];
-      rows.push(row.map(escapeCsvField).join(","));
-      continue;
-    }
+    // First row: main product with marketing content
+    const mainRow = [
+      "", // Essential (empty)
+      item.code, // Item Code (main product code)
+      "", // Item SKU (empty for main product)
+      "", // Parent Cat
+      "", // Sub Cat
+      "", // Price (empty for main product)
+      "", // Quantity (empty for main product)
+      "", // Colour (empty for main product)
+      "", // Hex code
+      productSpecs,
+      marketing?.seoTitle ?? "",
+      marketing?.productTitle ?? "",
+      marketing?.productDescription ?? "",
+      marketing?.longProductDescription ?? "",
+      marketing?.metaDescription ?? "",
+    ];
+    rows.push(mainRow.map(escapeCsvField).join(","));
 
-    for (const variant of item.results) {
-      const price =
-        typeof variant.price === "number" && !Number.isNaN(variant.price)
-          ? variant.price.toString()
-          : "";
-      const quantity =
-        variant.quantity !== undefined && variant.quantity !== null
-          ? variant.quantity.toString()
-          : "";
+    // Variant rows: only Item SKU, Price, Quantity, and Colour filled
+    if (item.results.length > 0) {
+      for (const variant of item.results) {
+        const price =
+          typeof variant.price === "number" && !Number.isNaN(variant.price)
+            ? variant.price.toString()
+            : "";
+        const quantity =
+          variant.quantity !== undefined && variant.quantity !== null
+            ? variant.quantity.toString()
+            : "";
 
-      const row = [
-        item.code, // Search Code
-        variant.itemCode, // Item SKU
-        "", // Parent Cat
-        "", // Sub Cat
-        price,
-        quantity,
-        extractColour(variant.description),
-        "", // Hex code
-        productSpecs,
-        marketing?.seoTitle ?? "",
-        marketing?.productTitle ?? "",
-        marketing?.productDescription ?? "",
-        marketing?.longProductDescription ?? "",
-        marketing?.metaDescription ?? "",
-      ];
-      rows.push(row.map(escapeCsvField).join(","));
+        const variantRow = [
+          "", // Essential (empty)
+          "", // Item Code (empty for variants)
+          variant.itemCode, // Item SKU (variant code)
+          "", // Parent Cat
+          "", // Sub Cat
+          price,
+          quantity,
+          extractColour(variant.description),
+          "", // Hex code
+          "", // Product Specs (empty for variants)
+          "", // SEO Title (empty for variants)
+          "", // Product Title (empty for variants)
+          "", // Product Description (empty for variants)
+          "", // Long Product Description (empty for variants)
+          "", // Meta Description (empty for variants)
+        ];
+        rows.push(variantRow.map(escapeCsvField).join(","));
+      }
     }
   }
 

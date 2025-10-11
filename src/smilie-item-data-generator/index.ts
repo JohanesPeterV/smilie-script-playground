@@ -99,14 +99,18 @@ async function populateOpenAIMarketingCopy(
     try {
       const openAiMarketingContentGenerator =
         new OpenAiMarketingContentGenerator();
-      const copy = await openAiMarketingContentGenerator.run({
-        code: item.code,
-        detail: item.myGift ?? null,
-        imageUrl: selectedImage ?? undefined,
-      });
+      if (item.myGift) {
+        const { printingMethods, ...myGift } = item.myGift;
 
-      if (copy) {
-        item.marketingContent = copy;
+        const content = await openAiMarketingContentGenerator.run({
+          code: item.code,
+          detail: myGift ?? null,
+          imageUrl: selectedImage ?? undefined,
+        });
+
+        if (content) {
+          item.marketingContent = content;
+        }
       }
     } catch (error) {
       console.error(

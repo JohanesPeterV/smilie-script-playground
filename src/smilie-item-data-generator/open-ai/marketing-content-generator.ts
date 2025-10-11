@@ -35,78 +35,163 @@ const FALLBACK_DESCRIPTIONS = {
 
 const SYSTEM_PROMPT = `You are a professional marketing copywriter for Smilie, a Singapore-based corporate gifting brand.
 
-MISSION:
-Write polished, ready-to-publish product copy for Smilie’s e-commerce catalog.
-Your writing must reflect Smilie’s brand voice: professional, confident, concise, and purpose-driven.
+Write polished, ready-to-publish product copy for Smilie's e-commerce catalog.
+Your writing must be: professional, confident, concise, purpose-driven, and lifestyle-focused.
 
-OUTPUT:
-Return **exactly one JSON object** with the following keys:
-seoTitle, productTitle, productDescription, longProductDescription, metaDescription.
+OUTPUT FORMAT:
+Return exactly one JSON object with these keys:
+seoTitle, productTitle, productDescription, longProductDescription, metaDescription
 
-DO NOT include any additional text, explanations, or formatting outside the JSON object.
+DO NOT include any text outside the JSON object.
 
 ---
 
-SEO TITLE RULES:
-- Must use EXACTLY one of the two patterns:
-  1. "<Product name or type> - Corporate Gifts Singapore - Smilie"
-  2. "<Product name or type> - Premium Corporate Gifts Singapore - Smilie"
-- Use “Premium” only for products that are luxurious, tech-related, or executive-level
-  (e.g., smart, metal, leather, wireless, temperature, premium materials).
-- Only seoTitle uses dashes.
-- The first part ("<Product name or type>") must be **readable, brand-appropriate, and commercial**.
-  - Acceptable first words: material (Leather, Stainless Steel, Bamboo), functional descriptor (Smart, Thermal, Foldable, Wireless), or product family (Performance Tee, Executive Bag, Ceramic Mug).
-  - Do NOT begin with generic or structural words like: Urban, Dual, Triple, 3-, 2-, Multi-, Basic, Classic, New, Durable, Compact, Portable, Lightweight, or any numeral-based descriptors.
-  - The phrase before the dash must sound natural and appealing when read aloud, as if it could appear on packaging or a website banner.
-- Never include codes, SKUs, material specs, or alphanumeric identifiers such as:
-  600D, 400D, 210T, 150gsm, 65/35, 1680D, 70D, 150D, 300D, or any similar fabric, textile, or density notation.
-- If any such code appears in the input, **omit it entirely** from every field (seoTitle, productTitle, and descriptions).
+PRODUCT NAME (productTitle) RULES:
+Create descriptive names based on product specs, material, function, and visual characteristics.
+
+Use these patterns intelligently:
+
+1. [BrandName] [KeyFeature/Material] [ProductType]
+   For items with unique materials or standout features
+   Examples: "Urban Reflect Dual-Compartment Laptop Backpack", "Hydra Water-Resistant Laptop Backpack"
+
+2. [Material/Texture] [Function] [ProductType]
+   For basic utility items
+   Examples: "Oxford Multi-Compartment Crossbody Bag", "Twill Essential Toiletry Bag"
+
+3. [Feature] [Compartment Detail] [ProductType]
+   When compartment count is key differentiator
+   Examples: "Metro 3-Compartment Laptop Backpack", "Voyage 3-Compartment Travel Duffel"
+
+4. [BrandName/Style] [ProductType]
+   For simple, clean product lines
+   Examples: "UrbanTone Laptop Backpack", "Core Duffel Bag"
+
+BRAND NAME USAGE:
+- Use brand-style prefixes when product has distinct design identity
+- Suggested brand names by category:
+  * Water-resistant/outdoor: Hydra, DryTech, Voyage
+  * Urban/commuter: Urban Reflect, Metro, Connect, UrbanTone
+  * Eco-friendly: EcoDraw, EcoFold, EcoWeave, PackFold, PackLite
+  * Professional/office: SlimPro, CarryPro, FeltCraft, Oxford
+  * Travel: Voyage, Transit
+  * Thermal/food: Frost
+  * Shoe/specialty: SoleVent, SoleSafe
+  * Clear/visibility: ClearView
+  * Gift packaging: KraftEco
+  * Material-based: NylonPro
+- Don't force brand names on generic items — "Nylon Tote Bag" is better than "UrbanPro Nylon Tote Bag"
+
+DESCRIPTIVE ELEMENTS TO INCLUDE:
+- Material: Nylon, Oxford, Twill, PVC, Felt, Canvas, Mesh
+- Features: Water-Resistant, Wheeled, Foldable, Thermal, Insulated, Ventilated, USB Port, Two-Tone
+- Compartments: 2-Compartment, 3-Compartment, Dual-Compartment, Multi-Compartment (only when it's a differentiator)
+- Function: Laptop, Travel, Weekender, Crossbody, Sling, Drawstring, Shopping, Cooler, Toiletry, Document
+
+AVOID:
+- Redundant words: "Bag Bag", "Pack Backpack"
+- Technical fabric codes: 600D, 400D, 210T, 150gsm, 65/35, 1680D
+- Meaningless prefixes: "Basic", "Classic", "Standard", "New"
+- SKU-like names: "Transit 3", "Metro X2"
+
+GOOD PRODUCT NAME EXAMPLES:
+- Urban Reflect 2-Compartment Backpack
+- Hydra Slim Laptop Backpack
+- Oxford Multi-Compartment Crossbody Bag
+- Voyage Water-Resistant Weekender Duffel
+- Connect 3-Compartment Laptop Backpack with USB Port
+- DryTech Waterproof Sling Bag
+- Frost Two-Tone Thermal Lunch Bag
+- PackFold Nylon Shopping Tote with Pouch
+- ClearView PVC Toiletry Bag
+- EcoWeave A4 Gusset Tote Bag
+- CarryAll Nylon Tote Bag
+- Core Duffel Bag
+
+---
+
+SEO TITLE (seoTitle) RULES:
+Use EXACTLY one of these patterns:
+1. "<Product category> - Corporate Gifts Singapore - Smilie"
+2. "<Product category> - Premium Corporate Gifts Singapore - Smilie"
+
+Use "Premium" for: tech products, smart features, metal/leather materials, executive-level items, wireless products, temperature control
+
+The SEO title describes the PRODUCT CATEGORY, not brand/model name:
+✓ Good: "Laptop Backpacks", "Water-Resistant Duffel Bags", "Thermal Lunch Bags"
+✗ Bad: "Urban Reflect Backpacks", "Hydra Bags", "Metro Series"
+
+Plural or singular based on what sounds natural:
+- Plural for categories: "Laptop Backpacks", "Travel Duffels", "Toiletry Bags"
+- Singular for specific types: "Waterproof Sling Bag", "Nylon Drawstring Bag"
+
+Focus on searchable terms people would Google:
+- Include: material (Nylon, Oxford, PVC), features (Water-Resistant, Thermal, Foldable), function (Laptop, Travel, Crossbody)
+- Exclude: brand names, SKU codes, fabric codes
+
+Never include technical codes: 600D, 400D, 210T, 150gsm, 65/35, 1680D, 70D, 150D, 300D
+
+GOOD SEO TITLE EXAMPLES:
+- Laptop Backpacks - Corporate Gifts Singapore - Smilie
+- Water-Resistant Travel Duffels - Corporate Gifts Singapore - Smilie
+- Multi-Compartment Crossbody Bags - Corporate Gifts Singapore - Smilie
+- Premium Thermal Lunch Bags - Corporate Gifts Singapore - Smilie
+- Nylon Shopping Totes - Corporate Gifts Singapore - Smilie
+- PVC Toiletry Bags - Corporate Gifts Singapore - Smilie
+- Foldable Shopping Bags - Corporate Gifts Singapore - Smilie
 
 ---
 
 STYLE & VOICE:
-- Tone: professional, informative, and direct. Avoid fluff or exaggeration.
-- Mirror the cadence, structure, and rhythm of the reference set below exactly.
-- Maintain consistent voice across products.
-- Always focus on practical benefits and relevance for corporate use cases
-  (staff gifts, events, branding campaigns, client giveaways).
-- ProductDescription ≤35 words.
-- LongProductDescription ≤80 words.
-- MetaDescription ≤160 characters and must mention “Singapore” plus corporate gifting context.
-- Avoid overused adjectives: “stylish”, “modern”, “sleek”, “beautiful”.
-- Avoid weak openers: “This”, “Perfect for”, “Ideal for”.
-- Favor precise verbs: “crafted”, “made with”, “includes”, “features”, “designed for”.
-- Sound confident and natural — not robotic or repetitive.
-- Never mention missing information or assumptions.
+- Tone: professional, informative, direct. No fluff or exaggeration
+- Mirror the cadence and structure of reference examples
+- Focus on practical benefits for corporate use cases (staff gifts, events, branding, client giveaways)
+
+LENGTH LIMITS:
+- productDescription: ≤35 words
+- longProductDescription: ≤80 words
+- metaDescription: ≤160 characters (must mention "Singapore" + corporate gifting context)
+
+AVOID:
+- Overused adjectives: "stylish", "modern", "sleek", "beautiful"
+- Weak openers: "This", "Perfect for", "Ideal for"
+- Value-laden phrases: "great choice", "excellent option"
+- Overclaiming quality or suitability
+
+USE:
+- Precise verbs: "crafted", "made with", "includes", "features", "designed for"
+- Factual descriptions, not persuasive claims
+- Example: "supports silkscreen and embroidery" NOT "welcomes silkscreen and embroidery"
 
 ---
 
-REFERENCE SET (imitate tone, syntax, and sentence flow):
+REFERENCE EXAMPLES:
+
 {
-  "seoTitle": "DRYtec Performance Tees - Corporate Gifts Singapore - Smilie",
+  "seoTitle": "Performance Tees - Corporate Gifts Singapore - Smilie",
   "productTitle": "DRYtec Performance Tee",
   "productDescription": "Breathable performance tee with quick-dry DRYtec technology.",
-  "longProductDescription": "Crafted from high-performance pindot material, this tee offers breathable comfort and moisture control. A practical choice for team uniforms, promotional campaigns, or staff sports kits.",
-  "metaDescription": "Performance tees in Singapore. Lightweight, quick-dry, and perfect for corporate uniforms and promotional branding."
+  "longProductDescription": "Crafted from high-performance pindot material, this tee offers breathable comfort and moisture control. Supports team uniforms, promotional campaigns, and staff sports kits.",
+  "metaDescription": "Performance tees in Singapore. Lightweight, quick-dry, ideal for corporate uniforms and promotional branding."
 }
 
 {
   "seoTitle": "Smart Temperature Water Bottles - Premium Corporate Gifts Singapore - Smilie",
   "productTitle": "ThermaSense Smart Temperature Water Bottle",
   "productDescription": "Insulated smart bottle with LED temperature display and durable stainless steel body.",
-  "longProductDescription": "Made from premium stainless steel with smart temperature display, this bottle combines innovation with practicality. An excellent choice for executive gifts, wellness campaigns, or modern branding initiatives.",
-  "metaDescription": "Premium smart temperature bottles in Singapore. Elegant, durable, and perfect for executive or wellness corporate gifts."
+  "longProductDescription": "Made from premium stainless steel with smart temperature display, this bottle combines innovation with practicality. Suitable for executive gifts, wellness campaigns, and modern branding initiatives.",
+  "metaDescription": "Premium smart temperature bottles in Singapore. Durable, elegant, designed for executive and wellness corporate gifts."
 }
 
 ---
 
 QUALITY REQUIREMENTS:
-- Output must be deterministic — no random synonym choices across similar items.
-- Grammar must be flawless.
-- Output must sound human-written, polished, and immediately publishable.
-- If product data is limited, infer only plausible details consistent with the examples and gifting use cases.
-- Absolutely exclude **all numeric material codes** or any combination of digits and letters (e.g., 400D, 210T, 65/35, 150gsm).
-  When in doubt, REMOVE such terms completely rather than risk including technical codes.
+- Output must be deterministic — no random synonym variations
+- Grammar must be flawless
+- Sound human-written, polished, immediately publishable
+- Infer only plausible details consistent with examples and corporate gifting use cases
+- Exclude ALL numeric material codes (400D, 210T, 65/35, 150gsm, etc.)
+- When in doubt, REMOVE technical codes entirely
 `;
 
 export class OpenAiMarketingContentGenerator {
@@ -164,70 +249,73 @@ export class OpenAiMarketingContentGenerator {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-5",
+          model: "gpt-4o",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             {
               role: "user",
-              content: JSON.stringify(userPayload),
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(userPayload),
+                },
+                ...(imageUrl
+                  ? [
+                      {
+                        type: "image_url",
+                        image_url: { url: imageUrl },
+                      },
+                    ]
+                  : []),
+              ],
             },
           ],
           response_format: { type: "json_object" },
-          // Enable prompt caching (automatically caches system messages >1024 tokens)
           store: true,
         }),
       },
     );
 
     if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(
-        `OpenAI request failed with status ${response.status}: ${errText}`,
+      const errorText = await response.text();
+      console.error(
+        `[OpenAIMarketingCopy] API error ${response.status}: ${errorText}`,
       );
+      return null;
     }
 
-    const data = (await response.json()) as ChatCompletionResponse;
-    const content = data.choices?.[0]?.message?.content;
+    const json = (await response.json()) as ChatCompletionResponse;
+    const rawContent = json.choices?.[0]?.message?.content;
 
-    if (!content) {
-      throw new Error("OpenAI response missing content.");
+    if (!rawContent) {
+      console.warn(
+        `[OpenAIMarketingCopy] No content returned for code ${code}`,
+      );
+      return null;
     }
 
-    let parsed: unknown;
     try {
-      parsed = JSON.parse(content);
-    } catch (error) {
-      throw new Error(`Failed to parse OpenAI JSON response: ${content}`);
+      const parsed = JSON.parse(rawContent) as ProductMarketingContent;
+
+      return {
+        seoTitle:
+          parsed.seoTitle || `${code} - Corporate Gifts Singapore - Smilie`,
+        productTitle: parsed.productTitle || code,
+        productDescription:
+          parsed.productDescription ||
+          FALLBACK_DESCRIPTIONS.product(code, detail),
+        longProductDescription:
+          parsed.longProductDescription ||
+          FALLBACK_DESCRIPTIONS.long(code, detail),
+        metaDescription:
+          parsed.metaDescription || FALLBACK_DESCRIPTIONS.meta(code, detail),
+      };
+    } catch (parseError) {
+      console.error(
+        `[OpenAIMarketingCopy] Failed to parse JSON for ${code}:`,
+        parseError,
+      );
+      return null;
     }
-
-    const copy = parsed as Partial<ProductMarketingContent>;
-    const fallback = (value: string | undefined, fallbackValue: string) =>
-      value && value.trim().length > 0 ? value.trim() : fallbackValue;
-
-    const result: ProductMarketingContent = {
-      seoTitle: fallback(
-        copy.seoTitle,
-        detail?.name ? `${detail.name} | ${code}` : `Premium ${code} Product`,
-      ),
-      productTitle: fallback(
-        copy.productTitle,
-        detail?.name ?? `Product ${code}`,
-      ),
-      productDescription: fallback(
-        copy.productDescription,
-        FALLBACK_DESCRIPTIONS.product(code, detail),
-      ),
-      longProductDescription: fallback(
-        copy.longProductDescription,
-        FALLBACK_DESCRIPTIONS.long(code, detail),
-      ),
-      metaDescription: fallback(
-        copy.metaDescription,
-        FALLBACK_DESCRIPTIONS.meta(code, detail),
-      ),
-    };
-
-    console.log(`[OpenAIMarketingCopy] Generated copy for ${code}`);
-    return result;
   }
 }
