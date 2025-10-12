@@ -20,6 +20,8 @@ export type ProductStockResult = {
   marketingContent?: ProductMarketingContent | null;
   myGift?: MyGiftProductDetails | null;
   images?: string[];
+  parentCat?: string;
+  subCat?: string;
 };
 
 export type MyGiftProductDetails = {
@@ -37,4 +39,6 @@ export type MyGiftProductDetails = {
 
 export type Product = {
   code: string;
+  parentCat?: string;
+  subCat?: string;
 };

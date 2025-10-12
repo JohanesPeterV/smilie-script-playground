@@ -14,6 +14,12 @@ function parseCsv(csvContent: string): Product[] {
 
   const headers = lines[0].split(",");
   const codeIndex = headers.findIndex((header) => header.trim() === "code");
+  const parentCatIndex = headers.findIndex(
+    (header) => header.trim().toLowerCase() === "parentcat",
+  );
+  const subCatIndex = headers.findIndex(
+    (header) => header.trim().toLowerCase() === "subcat",
+  );
 
   if (codeIndex === -1) {
     throw new Error('CSV must contain a "code" column');
@@ -28,7 +34,15 @@ function parseCsv(csvContent: string): Product[] {
       continue;
     }
 
-    items.push({ code });
+    const parentCat =
+      parentCatIndex !== -1 ? record[parentCatIndex]?.trim() : undefined;
+    const subCat = subCatIndex !== -1 ? record[subCatIndex]?.trim() : undefined;
+
+    items.push({
+      code,
+      ...(parentCat && { parentCat }),
+      ...(subCat && { subCat }),
+    });
   }
 
   return items;

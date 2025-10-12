@@ -1,4 +1,10 @@
 import { getOptionalEnv } from "../helpers/env";
+import type { CacheData } from "../helpers/cache";
+import {
+  getCachedProduct,
+  hasCachedMarketingContent,
+  setCachedProduct,
+} from "../helpers/cache";
 import type { MyGiftProductDetails, ProductMarketingContent } from "../types";
 
 export type OpenAIMarketingContentRequest = {
@@ -192,6 +198,7 @@ QUALITY REQUIREMENTS:
 - Infer only plausible details consistent with examples and corporate gifting use cases
 - Exclude ALL numeric material codes (400D, 210T, 65/35, 150gsm, etc.)
 - When in doubt, REMOVE technical codes entirely
+- titles must be unique
 `;
 
 export class OpenAiMarketingContentGenerator {
@@ -205,11 +212,16 @@ export class OpenAiMarketingContentGenerator {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
-  async run({
-    code,
-    detail,
-    imageUrl,
-  }: OpenAIMarketingContentRequest): Promise<ProductMarketingContent | null> {
+  async run(
+    { code, detail, imageUrl }: OpenAIMarketingContentRequest,
+    cache?: CacheData,
+  ): Promise<ProductMarketingContent | null> {
+    if (cache && hasCachedMarketingContent(cache, code)) {
+      const cached = getCachedProduct(cache, code);
+      console.log(`[Cache Hit] Using cached marketing content for ${code}`);
+      return cached?.marketingContent ?? null;
+    }
+
     const apiKey = this.apiKeyResolver();
 
     if (!apiKey) {
@@ -249,7 +261,7 @@ export class OpenAiMarketingContentGenerator {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o",
+          model: "gpt-5",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             {
@@ -281,6 +293,13 @@ export class OpenAiMarketingContentGenerator {
       console.error(
         `[OpenAIMarketingCopy] API error ${response.status}: ${errorText}`,
       );
+
+      if (errorText.includes("invalid_image_url") && imageUrl) {
+        console.warn(
+          `[OpenAIMarketingCopy] Image URL failed for ${code}, skipping (image required)`,
+        );
+      }
+
       return null;
     }
 
@@ -297,7 +316,7 @@ export class OpenAiMarketingContentGenerator {
     try {
       const parsed = JSON.parse(rawContent) as ProductMarketingContent;
 
-      return {
+      const result = {
         seoTitle:
           parsed.seoTitle || `${code} - Corporate Gifts Singapore - Smilie`,
         productTitle: parsed.productTitle || code,
@@ -310,6 +329,12 @@ export class OpenAiMarketingContentGenerator {
         metaDescription:
           parsed.metaDescription || FALLBACK_DESCRIPTIONS.meta(code, detail),
       };
+
+      if (cache) {
+        setCachedProduct(cache, code, { marketingContent: result });
+      }
+
+      return result;
     } catch (parseError) {
       console.error(
         `[OpenAIMarketingCopy] Failed to parse JSON for ${code}:`,

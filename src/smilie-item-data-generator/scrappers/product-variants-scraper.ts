@@ -2,6 +2,12 @@ import type { Browser, Page } from "puppeteer";
 import puppeteerExtra from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { getRequiredEnv } from "../helpers/env";
+import type { CacheData } from "../helpers/cache";
+import {
+  getCachedProduct,
+  hasCachedStockResults,
+  setCachedProduct,
+} from "../helpers/cache";
 import type { Product } from "../types";
 import { ProductStockResult, StockRow } from "../types";
 
@@ -12,7 +18,7 @@ const CHECK_STOCK_PATH = getRequiredEnv("CHECK_STOCK_PATH");
 const USERNAME = getRequiredEnv("USERNAME");
 const PASSWORD = getRequiredEnv("PASSWORD");
 const CHECK_STOCK_SEARCH_SELECTOR = getRequiredEnv(
-  "CHECK_STOCK_SEARCH_SELECTOR"
+  "CHECK_STOCK_SEARCH_SELECTOR",
 );
 const RESULTS_ROW_SELECTOR = getRequiredEnv("RESULTS_ROW_SELECTOR");
 
@@ -27,29 +33,44 @@ export class ProductVariantsScraper {
     this.page.setDefaultNavigationTimeout(45000);
     await this.page.setViewport({ width: 1280, height: 720 });
     await this.page.setUserAgent(
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     );
 
     await this.login();
     await this.ensureCheckStockPage();
   }
 
-  async scrapeProducts(itemList: Product[]): Promise<ProductStockResult[]> {
+  async scrapeProducts(
+    itemList: Product[],
+    cache: CacheData,
+  ): Promise<ProductStockResult[]> {
     const results: ProductStockResult[] = [];
 
     for (const item of itemList) {
+      if (hasCachedStockResults(cache, item.code)) {
+        const cached = getCachedProduct(cache, item.code);
+        console.log(`[Cache Hit] Using cached stock results for ${item.code}`);
+        results.push({
+          ...item,
+          results: cached?.stockResults ?? [],
+        });
+        continue;
+      }
+
       try {
-        console.log(`Searching for item: ${item.code}`);
+        console.log(`[Scraping] Searching for item: ${item.code}`);
         const stockRows = await this.searchStockForItem(item.code);
 
         results.push({
-          code: item.code,
+          ...item,
           results: stockRows,
         });
+
+        setCachedProduct(cache, item.code, { stockResults: stockRows });
         console.log(`Found ${stockRows.length} results for ${item.code}`);
       } catch (error) {
         results.push({
-          code: item.code,
+          ...item,
           results: [],
         });
         console.error(`Failed to retrieve stock for ${item.code}:`, error);
@@ -144,7 +165,7 @@ export class ProductVariantsScraper {
         }
       },
       CHECK_STOCK_SEARCH_SELECTOR,
-      code
+      code,
     );
 
     await navigationPromise;
@@ -162,7 +183,7 @@ export class ProductVariantsScraper {
           }
 
           const rows = Array.from(
-            document.querySelectorAll<HTMLTableRowElement>(rowSelector)
+            document.querySelectorAll<HTMLTableRowElement>(rowSelector),
           );
 
           if (!rows.length) {
@@ -171,7 +192,7 @@ export class ProductVariantsScraper {
 
           return rows.some((row) => {
             const firstCell = row.querySelector<HTMLTableCellElement>(
-              "td.database_content"
+              "td.database_content",
             );
             return (
               firstCell?.textContent?.trim().toUpperCase().startsWith(prefix) ??
@@ -182,16 +203,16 @@ export class ProductVariantsScraper {
         { timeout: 45000 },
         RESULTS_ROW_SELECTOR,
         searchPrefix,
-        "----- No Record -----"
+        "----- No Record -----",
       );
     } catch (error) {
       const snippet =
         (await page.$eval(
           "#listDiv",
-          (table) => table.textContent?.slice(0, 200) ?? ""
+          (table) => table.textContent?.slice(0, 200) ?? "",
         )) || "";
       throw new Error(
-        `Timed out waiting for refreshed results for ${code}. Table snippet: ${snippet}`
+        `Timed out waiting for refreshed results for ${code}. Table snippet: ${snippet}`,
       );
     }
 
@@ -201,7 +222,7 @@ export class ProductVariantsScraper {
         tableRows
           .map((row) => {
             const cells = Array.from(
-              row.querySelectorAll<HTMLTableCellElement>("td.database_content")
+              row.querySelectorAll<HTMLTableCellElement>("td.database_content"),
             );
 
             const itemCode = cells[0]?.textContent?.trim() ?? "";
@@ -218,15 +239,15 @@ export class ProductVariantsScraper {
           })
           .filter(
             (
-              row
+              row,
             ): row is {
               itemCode: string;
               description: string;
               quantityText: string;
               priceText: string;
-            } => row !== null
+            } => row !== null,
           ),
-      searchPrefix
+      searchPrefix,
     );
 
     if (rows.length === 0) {
@@ -234,7 +255,7 @@ export class ProductVariantsScraper {
         (await page.$eval(
           "#listDiv",
           (table) =>
-            table.textContent?.includes("----- No Record -----") ?? false
+            table.textContent?.includes("----- No Record -----") ?? false,
         )) || false;
       if (noRecord) {
         return [];
@@ -252,12 +273,13 @@ export class ProductVariantsScraper {
 
 export async function scrapeProducts(
   browser: Browser,
-  itemList: Product[]
+  itemList: Product[],
+  cache: CacheData,
 ): Promise<ProductStockResult[]> {
   const scraper = new ProductVariantsScraper(browser);
   await scraper.init();
   try {
-    return await scraper.scrapeProducts(itemList);
+    return await scraper.scrapeProducts(itemList, cache);
   } finally {
     await scraper.close();
   }

@@ -1,4 +1,10 @@
 import type { Browser, Page } from "puppeteer";
+import type { CacheData } from "../helpers/cache";
+import {
+  getCachedProduct,
+  hasCachedMyGiftDetails,
+  setCachedProduct,
+} from "../helpers/cache";
 import type { MyGiftProductDetails, Product } from "../types";
 
 const BASE_URL = "https://www.mygiftuniversal.com";
@@ -53,26 +59,43 @@ export class ProductDetailsScrapper {
     }
   }
 
-  async scrapeItems(items: Product[]): Promise<MyGiftProductDetails[]> {
+  async scrapeItems(
+    items: Product[],
+    cache: CacheData,
+  ): Promise<MyGiftProductDetails[]> {
     const results: MyGiftProductDetails[] = [];
 
     for (const item of items) {
+      if (hasCachedMyGiftDetails(cache, item.code)) {
+        const cached = getCachedProduct(cache, item.code);
+        console.log(`[Cache Hit] Using cached MyGift details for ${item.code}`);
+        if (cached?.myGiftDetails) {
+          results.push(cached.myGiftDetails);
+        }
+        continue;
+      }
+
       try {
-        console.log(`Scraping MyGift details for: ${item.code}`);
+        console.log(`[Scraping] MyGift details for: ${item.code}`);
         const detail = await this.scrapeItem(item);
         if (detail) {
           results.push(detail);
+          setCachedProduct(cache, item.code, { myGiftDetails: detail });
           console.log(`Captured details for ${item.code}`);
         } else {
-          results.push({ code: item.code, images: [] });
+          const emptyDetail = { code: item.code, images: [] };
+          results.push(emptyDetail);
+          setCachedProduct(cache, item.code, { myGiftDetails: emptyDetail });
           console.warn(`No MyGift detail found for ${item.code}`);
         }
       } catch (error) {
         console.error(
           `Failed to capture MyGift detail for ${item.code}:`,
-          error
+          error,
         );
-        results.push({ code: item.code, images: [] });
+        const emptyDetail = { code: item.code, images: [] };
+        results.push(emptyDetail);
+        setCachedProduct(cache, item.code, { myGiftDetails: emptyDetail });
       }
 
       await sleep(750);
@@ -89,7 +112,7 @@ export class ProductDetailsScrapper {
   }
 
   private async scrapeItem(
-    item: Product
+    item: Product,
   ): Promise<MyGiftProductDetails | null> {
     const page = this.getPage();
     const searchResult = await this.searchProduct(item.code);
@@ -138,14 +161,14 @@ export class ProductDetailsScrapper {
 
         const tables = Array.from(
           document.querySelectorAll<HTMLTableElement>(
-            "#hikashop_product_description_main table, div[id^='hikashop_product_description_'] table, div[id^='hikashop_product_custom_value_'] table"
-          )
+            "#hikashop_product_description_main table, div[id^='hikashop_product_description_'] table, div[id^='hikashop_product_custom_value_'] table",
+          ),
         );
         tables.forEach(collectFromTable);
 
         if (!Object.keys(specs).length) {
           const rows = Array.from(
-            document.querySelectorAll(".hikashop_product_page tr")
+            document.querySelectorAll(".hikashop_product_page tr"),
           );
           rows.forEach((row) => {
             const cells = row.querySelectorAll("td,th");
@@ -169,7 +192,7 @@ export class ProductDetailsScrapper {
         }
 
         const makeAbsolute = (
-          url: string | null | undefined
+          url: string | null | undefined,
         ): string | null => {
           if (!url) {
             return null;
@@ -183,7 +206,7 @@ export class ProductDetailsScrapper {
 
         const imageSet = new Set<string>();
         const imageAnchors = document.querySelectorAll<HTMLAnchorElement>(
-          "[id^='hikashop_product_image'] a[href]"
+          "[id^='hikashop_product_image'] a[href]",
         );
         imageAnchors.forEach((anchor) => {
           const absolute = makeAbsolute(anchor.getAttribute("href"));
@@ -194,7 +217,7 @@ export class ProductDetailsScrapper {
 
         if (!imageSet.size) {
           const imgs = document.querySelectorAll<HTMLImageElement>(
-            "[id^='hikashop_product_image'] img[src]"
+            "[id^='hikashop_product_image'] img[src]",
           );
           imgs.forEach((img) => {
             const absolute = makeAbsolute(img.getAttribute("src"));
@@ -206,7 +229,7 @@ export class ProductDetailsScrapper {
 
         const variantName =
           Array.from(
-            document.querySelectorAll("[id^='hikashop_product_name_']")
+            document.querySelectorAll("[id^='hikashop_product_name_']"),
           )
             .map((el) => el.textContent?.trim() ?? "")
             .find((text) => text && !text.includes("Please select")) ?? "";
@@ -214,7 +237,7 @@ export class ProductDetailsScrapper {
         const fallbackName =
           document
             .querySelector<HTMLElement>(
-              "[itemprop='name'], .hikashop_product_name_main, h1"
+              "[itemprop='name'], .hikashop_product_name_main, h1",
             )
             ?.textContent?.trim() ?? "";
 
@@ -225,7 +248,7 @@ export class ProductDetailsScrapper {
         };
       },
       SPEC_FIELD_ALIASES,
-      BASE_URL
+      BASE_URL,
     );
 
     const uniqueImages = new Set<string>(detail.images ?? []);
@@ -240,8 +263,8 @@ export class ProductDetailsScrapper {
             printingValue
               .split(/[,/]/)
               .map((method) => method.trim())
-              .filter(Boolean)
-          )
+              .filter(Boolean),
+          ),
         )
       : undefined;
 
@@ -285,8 +308,8 @@ export class ProductDetailsScrapper {
     const results = (await page.evaluate(() => {
       const products = Array.from(
         document.querySelectorAll<HTMLElement>(
-          ".hikashop_products_listing .hikashop_product"
-        )
+          ".hikashop_products_listing .hikashop_product",
+        ),
       );
       return products.map((node) => {
         const title =
@@ -313,7 +336,7 @@ export class ProductDetailsScrapper {
     })) as Array<SearchResult | null>;
 
     const cleaned: SearchResult[] = results.filter(
-      (result): result is SearchResult => result !== null
+      (result): result is SearchResult => result !== null,
     );
     if (!cleaned.length) {
       return null;
@@ -332,7 +355,7 @@ export class ProductDetailsScrapper {
 
   private async gotoWithChallenge(
     url: string,
-    waitForSelector?: string
+    waitForSelector?: string,
   ): Promise<void> {
     const page = this.getPage();
     await page.goto(url, { waitUntil: "domcontentloaded" });
@@ -353,7 +376,7 @@ export class ProductDetailsScrapper {
           const challengeVisible = document.querySelector("#outer-container");
           return !title.includes("one moment") && !challengeVisible;
         },
-        { timeout: 20000 }
+        { timeout: 20000 },
       )
       .catch(() => undefined);
   }
@@ -361,12 +384,13 @@ export class ProductDetailsScrapper {
 
 export async function scrapeMyGiftDetails(
   browser: Browser,
-  items: Product[]
+  items: Product[],
+  cache: CacheData,
 ): Promise<MyGiftProductDetails[]> {
   const scraper = new ProductDetailsScrapper(browser);
   await scraper.init();
   try {
-    return await scraper.scrapeItems(items);
+    return await scraper.scrapeItems(items, cache);
   } finally {
     await scraper.close();
   }

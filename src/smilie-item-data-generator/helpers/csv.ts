@@ -96,8 +96,8 @@ export function generateCsv(data: ProductStockResult[]): string {
       "", // Essential (empty)
       item.code, // Item Code (main product code)
       "", // Item SKU (empty for main product)
-      "", // Parent Cat
-      "", // Sub Cat
+      item.parentCat ?? "", // Parent Cat
+      item.subCat ?? "", // Sub Cat
       "", // Price (empty for main product)
       "", // Quantity (empty for main product)
       "", // Colour (empty for main product)

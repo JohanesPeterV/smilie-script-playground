@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 import loadProducts from "./data-loader/load-products";
+import { loadCache, saveCache } from "./helpers/cache";
 import { generateCsv } from "./helpers/csv";
 
 import { OpenAiMarketingContentGenerator } from "./open-ai/marketing-content-generator";
@@ -11,7 +12,11 @@ import {
   createBrowser,
   scrapeProducts,
 } from "./scrappers/product-variants-scraper";
-import type { MyGiftProductDetails, ProductStockResult } from "./types";
+import type {
+  MyGiftProductDetails,
+  Product,
+  ProductStockResult,
+} from "./types";
 
 function createTimestampedFilename(prefix: string, extension: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -60,6 +65,7 @@ function mergeStockWithDetails(
 function appendMissingDetails(
   itemsWithExistingDetails: ProductStockResult[],
   detailRecords: MyGiftProductDetails[],
+  products: Product[],
 ): ProductStockResult[] {
   for (const detail of detailRecords) {
     const normalized = detail.code.trim().toLowerCase();
@@ -73,7 +79,12 @@ function appendMissingDetails(
     const imageSet = new Set<string>(detail.images ?? []);
     const primaryImage = detail.images?.[0] ?? "";
 
+    const matchingProduct = products.find(
+      (p) => p.code.trim().toLowerCase() === normalized,
+    );
+
     itemsWithExistingDetails.push({
+      ...matchingProduct,
       code: detail.code,
       imageUrl: primaryImage,
       results: [],
@@ -91,6 +102,7 @@ const waitFor = (ms: number) =>
 
 async function populateOpenAIMarketingCopy(
   itemsWithDetails: ProductStockResult[],
+  cache: import("./helpers/cache").CacheData,
   imageDelayMs = 500,
 ): Promise<void> {
   for (const item of itemsWithDetails) {
@@ -102,11 +114,14 @@ async function populateOpenAIMarketingCopy(
       if (item.myGift) {
         const { printingMethods, ...myGift } = item.myGift;
 
-        const content = await openAiMarketingContentGenerator.run({
-          code: item.code,
-          detail: myGift ?? null,
-          imageUrl: selectedImage ?? undefined,
-        });
+        const content = await openAiMarketingContentGenerator.run(
+          {
+            code: item.code,
+            detail: myGift ?? null,
+            imageUrl: selectedImage ?? undefined,
+          },
+          cache,
+        );
 
         if (content) {
           item.marketingContent = content;
@@ -148,13 +163,14 @@ function writeOutputsToDisk(items: ProductStockResult[]): void {
 }
 
 export async function run(): Promise<void> {
+  const cache = loadCache();
   const browser = await createBrowser();
   let detailRecords: MyGiftProductDetails[] = [];
   try {
     const products = loadProducts();
-    const stockResults = await scrapeProducts(browser, products);
+    const stockResults = await scrapeProducts(browser, products, cache);
     try {
-      detailRecords = await scrapeMyGiftDetails(browser, products);
+      detailRecords = await scrapeMyGiftDetails(browser, products, cache);
     } catch (error) {
       console.error("MyGift detail scraping failed:", error);
     }
@@ -164,9 +180,11 @@ export async function run(): Promise<void> {
     const catalogWithDetails = appendMissingDetails(
       [...stockWithDetails],
       detailRecords,
+      products,
     );
 
-    await populateOpenAIMarketingCopy(catalogWithDetails);
+    await populateOpenAIMarketingCopy(catalogWithDetails, cache);
+    saveCache(cache);
     writeOutputsToDisk(catalogWithDetails);
   } finally {
     await browser.close();
