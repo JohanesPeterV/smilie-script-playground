@@ -14,7 +14,7 @@ async function main() {
             if (!color) {
               return null;
             }
-            return `- ${color}: ${x.quantity}`;
+            return `- ${color}: ${Number(x.quantity).toLocaleString()}`;
           })
           .filter((x) => x !== null)
           .join("\n");
