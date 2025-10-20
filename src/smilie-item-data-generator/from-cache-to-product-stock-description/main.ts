@@ -2,47 +2,83 @@ import cacheJson from "../../../cache.json";
 import { db } from "../../db";
 
 async function main() {
-  const data = Object.values(cacheJson.products)
-    .flatMap((x) => {
-      return x.stockResults.map((y) => ({
-        sku: x.code,
-        description: y.description,
-        color: getColorInHackyWay(y.description),
-        quantity: y.quantity,
-      }));
-    })
-    .filter((x) => !!x.color);
-
-  const stockInformationBySku = data.reduce((acc, curr) => {
-    if (!acc[curr.sku]) {
-      acc[curr.sku] = [];
-    }
-    acc[curr.sku].push(`- ${curr.color}: ${curr.quantity}`);
-    return acc;
-  }, {} as Record<string, string[]>);
-
-  const skus = Object.keys(stockInformationBySku);
+  const products = Object.values(cacheJson.products);
 
   await Promise.all(
-    skus.map(async (sku) => {
+    products.map(async (product) => {
+      // phase 1: update product stock description
       try {
-        const stockDescription = stockInformationBySku[sku].join("\n");
+        const stockDescription = product.stockResults
+          .map((x) => {
+            const color = getColorInHackyWay(x.description);
+            if (!color) {
+              return null;
+            }
+            return `- ${color}: ${x.quantity}`;
+          })
+          .filter((x) => x !== null)
+          .join("\n");
 
-        console.log(`Update product ${sku}: start...`, stockDescription);
+        console.log(
+          `Update product ${product.code}: start...`,
+          stockDescription
+        );
 
         await db.product.update({
           where: {
-            sku,
+            sku: product.code,
           },
           data: {
             stockDescription,
           },
         });
 
-        console.log(`Update product ${sku}: success`);
+        console.log(`Update product ${product.code}: success`);
       } catch (error) {
-        console.warn(`Update product ${sku}: error`, error);
+        console.warn(`Update product ${product.code}: error`, error);
       }
+
+      // phase 2: update product color options stock by found SKU
+      await Promise.all(
+        product.stockResults.map(async (productVariant) => {
+          try {
+            console.log(
+              `Update color SKU "${productVariant.itemCode}": start...`
+            );
+
+            const pco = await db.productColorOption.findFirst({
+              where: {
+                sku: productVariant.itemCode,
+              },
+            });
+
+            if (!pco) {
+              console.warn(
+                `Update color SKU "${productVariant.itemCode}": not found`
+              );
+              return;
+            }
+
+            await db.productColorOption.update({
+              where: {
+                id: pco.id,
+              },
+              data: {
+                stock: productVariant.quantity,
+              },
+            });
+
+            console.log(
+              `Update color SKU "${productVariant.itemCode}": success`
+            );
+          } catch (error) {
+            console.warn(
+              `Update color SKU "${productVariant.itemCode}": error`,
+              error
+            );
+          }
+        })
+      );
     })
   );
 }
