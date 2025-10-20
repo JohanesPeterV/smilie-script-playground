@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model FAQ {
+  id                String           @id
+  question          String
+  answer            String
+  displayOrder      Int              @default(0)
+  isActive          Boolean          @default(true)
+  isFeatured        Boolean          @default(false)
+  productCategoryId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime
+  deletedAt         DateTime?
+  ProductCategory   ProductCategory? @relation(fields: [productCategoryId], references: [id])
+
+  @@index([displayOrder])
+  @@index([isActive, isFeatured])
+  @@index([productCategoryId])
+}
+
+model Product {
+  id                               String                             @id
+  name                             String                             @unique
+  description                      String
+  price                            Decimal
+  imageUrls                        String[]
+  sizeOptions                      String[]
+  createdAt                        DateTime                           @default(now())
+  updatedAt                        DateTime
+  deletedAt                        DateTime?
+  printTypeOptions                 String[]
+  seoTitle                         String?
+  sku                              String                             @unique
+  slug                             String                             @unique
+  metaDescription                  String?
+  longDescription                  String
+  specsDescription                 String?
+  stockDescription                 String?
+  ProductColorOption               ProductColorOption[]
+  ProductQuantityManufacturingRule ProductQuantityManufacturingRule[]
+  ProductQuantityPricingRule       ProductQuantityPricingRule[]
+  ProductSizeOption                ProductSizeOption[]
+  ProductPrintingOption            ProductPrintingOption[]            @relation("ProductToPrintingOption")
+  ProductCategory                  ProductCategory[]                  @relation("ProductToProductCategory")
+}
+
+model ProductCategory {
+  id                      String            @id
+  name                    String
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime
+  deletedAt               DateTime?
+  description             String?
+  parentProductCategoryId String?
+  slug                    String            @unique
+  seoTitle                String?
+  metaDescription         String?
+  h1Title                 String?
+  shortDescription        String?
+  longDescription         String?
+  internalLinks           String?
+  primaryKeywords         String?
+  userIntent              String?
+  triggerToBuy            String?
+  FAQ                     FAQ[]
+  ProductCategory         ProductCategory?  @relation("ProductCategoryToProductCategory", fields: [parentProductCategoryId], references: [id])
+  other_ProductCategory   ProductCategory[] @relation("ProductCategoryToProductCategory")
+  Product                 Product[]         @relation("ProductToProductCategory")
+}
+
+model ProductColorOption {
+  id              String    @id
+  color           String
+  additionalPrice Decimal
+  productId       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime
+  deletedAt       DateTime?
+  backImages      String[]  @default([])
+  frontImages     String[]  @default([])
+  hexCode         String?
+  imageUrls       String[]  @default([])
+  leftSideImages  String[]  @default([])
+  rightSideImages String[]  @default([])
+  sku             String?
+  stock           Decimal?
+  Product         Product   @relation(fields: [productId], references: [id])
+}
+
+model ProductPrintingOption {
+  id                         String                       @id
+  sku                        String                       @unique
+  printMethod                String
+  printLocation              String?
+  materialCost               Decimal
+  setupFee                   Decimal                      @default(0)
+  labourCost                 Decimal?                     @default(0)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime
+  deletedAt                  DateTime?
+  ProductPrintingPricingRule ProductPrintingPricingRule[]
+  Product                    Product[]                    @relation("ProductToPrintingOption")
+
+  @@index([printMethod])
+}
+
+model ProductPrintingPricingRule {
+  id                      String                @id
+  productPrintingOptionId String
+  minimumQuantity         Int
+  maximumQuantity         Int?
+  unitPrice               Decimal
+  discountPercentage      Decimal?
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime
+  deletedAt               DateTime?
+  ProductPrintingOption   ProductPrintingOption @relation(fields: [productPrintingOptionId], references: [id])
+
+  @@index([productPrintingOptionId, minimumQuantity])
+}
+
+model ProductQuantityManufacturingRule {
+  id                String    @id
+  productId         String
+  minimumQuantity   Int
+  maximumQuantity   Int?
+  manufacturingDays Int
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  deletedAt         DateTime?
+  Product           Product   @relation(fields: [productId], references: [id])
+}
+
+model ProductQuantityPricingRule {
+  id                 String    @id
+  productId          String
+  minimumQuantity    Int
+  maximumQuantity    Int?
+  unitPrice          Decimal
+  discountPercentage Decimal?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  deletedAt          DateTime?
+  Product            Product   @relation(fields: [productId], references: [id])
+
+  @@index([productId, minimumQuantity])
+}
+
+model ProductSizeOption {
+  id              String    @id
+  size            String
+  additionalPrice Decimal
+  productId       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime
+  deletedAt       DateTime?
+  Product         Product   @relation(fields: [productId], references: [id])
+}
+
+model account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model infinity_financial_advisor_event_order {
+  id                    String    @id
+  firstName             String
+  lastName              String
+  phoneNumber           String
+  email                 String
+  ifaCode               String
+  orderQuantity         Int
+  mailingService        Boolean   @default(false)
+  mailingQuantity       Int?
+  personalHotstamping   Boolean   @default(false)
+  totalOrderSum         Decimal
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime
+  deletedAt             DateTime?
+  publicId              String    @unique
+  hotstampContactNumber String?
+  hotstampEmail         String?
+  hotstampName          String?
+  hotstampDesignation   String?
+
+  @@index([createdAt])
+  @@index([email])
+}
+
+model session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model user {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  role          String    @default("user")
+  account       account[]
+  session       session[]
+}
+
+model verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+}
