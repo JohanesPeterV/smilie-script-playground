@@ -8,7 +8,7 @@
     "dev": "ts-node src/index.ts",
     "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "run:from-cache-to-product-stock-description": "bun run src/smilie-item-data-generator/from-cache-to-product-stock-description/main.ts"
+    "run:load-data-from-cache-to-product": "bun run src/smilie-item-data-generator/load-data-from-cache-to-product/main.ts"
   },
   "keywords": [],
   "author": "",
