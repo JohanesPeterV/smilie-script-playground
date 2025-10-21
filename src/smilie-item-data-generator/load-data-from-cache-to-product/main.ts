@@ -1,7 +1,7 @@
 import cacheJson from "../../../cache.json";
 import { db } from "../../db";
 
-async function main() {
+export async function loadDataFromCacheToProduct() {
   const products = Object.values(cacheJson.products);
 
   await Promise.all(
@@ -82,8 +82,6 @@ async function main() {
     })
   );
 }
-
-main();
 
 function getColorInHackyWay(description: string): string {
   const words = description.split(" ");

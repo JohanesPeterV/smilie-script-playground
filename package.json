@@ -8,6 +8,7 @@
     "dev": "ts-node src/index.ts",
     "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "start:cron": "bun run src/crons/main.ts",
     "run:load-data-from-cache-to-product": "bun run src/smilie-item-data-generator/load-data-from-cache-to-product/main.ts"
   },
   "keywords": [],
@@ -16,12 +17,14 @@
   "description": "",
   "dependencies": {
     "@prisma/client": "^6.17.1",
+    "cron": "^4.3.3",
     "dotenv": "^17.2.3",
     "puppeteer": "^24.23.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/node": "^24.7.0",
     "prisma": "^6.17.1",
     "ts-node": "^10.9.2",
