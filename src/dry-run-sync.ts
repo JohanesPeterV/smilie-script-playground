@@ -1,6 +1,21 @@
 import dotenv from "dotenv";
 dotenv.config({ override: true });
 
+const REPORT_FILE = "sync-report.txt";
+
+function createLogger(filename: string) {
+  const fs = require("fs");
+  const path = require("path");
+  const filePath = path.join(process.cwd(), filename);
+  fs.writeFileSync(filePath, `Sync Report generated: ${new Date().toISOString()}\n\n`, "utf8");
+  return (msg: string) => {
+    console.log(msg);
+    fs.appendFileSync(filePath, msg + "\n", "utf8");
+  };
+}
+
+const log = createLogger(REPORT_FILE);
+
 async function main() {
   const { db } = await import("./db");
   const fs = await import("fs");
@@ -10,71 +25,123 @@ async function main() {
   const cacheData = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
   const products = Object.values(cacheData.products) as any[];
 
-  console.log(`\n=== DRY RUN: Sync ${products.length} products from cache ===\n`);
+  log(`=== DRY RUN: Sync ${products.length} products from cache ===\n`);
+
+  let productUpdates = 0;
+  let colorUpdates = 0;
+  let productSkips = 0;
+  let colorSkips = 0;
 
   for (const product of products) {
-    console.log(`─── Product: ${product.code} ───`);
+    log(`═══ Product: ${product.code} ═══`);
 
-    // Phase 1: stockDescription
+    // Build stockDescription
     const stockDescription = product.stockResults
       .map((x: any) => {
-        const color = getColorInHackyWay(x.description);
+        const color = extractColor(x.description);
         if (!color) return null;
-        return `- ${color}: ${Number(x.quantity).toLocaleString()}`;
+        return `- ${color}: ${Number(x.quantity).toLocaleString("en-US")}`;
       })
       .filter((x: any) => x !== null)
       .join("\n");
 
-    // Derive product price (all variants share the same price)
-    const newPrice = product.stockResults[0]?.price ?? null;
+    const price = product.stockResults[0]?.price;
 
-    const dbProduct = await db.product.findUnique({
-      where: { sku: product.code },
-      select: { id: true, name: true, sku: true, stockDescription: true, price: true },
-    });
+    // Build update data (same logic as actual sync)
+    const updateData: Record<string, unknown> = {
+      stockDescription,
+      ...(price != null ? { price } : {}),
+    };
 
-    if (dbProduct) {
-      const currentPrice = Number(dbProduct.price);
-      const priceChanged = newPrice !== null && currentPrice !== newPrice;
-      console.log(`  [Product] "${dbProduct.name}" (sku: ${dbProduct.sku})`);
-      console.log(`  [Price] ${currentPrice} → ${newPrice}${priceChanged ? " (CHANGED)" : " (no change)"}`);
-      console.log(`  [Current stockDescription]:`);
-      console.log(`    ${(dbProduct.stockDescription || "(empty)").replace(/\n/g, "\n    ")}`);
-      console.log(`  [New stockDescription]:`);
-      console.log(`    ${stockDescription.replace(/\n/g, "\n    ")}`);
-      console.log(`  [Action] Would UPDATE Product.stockDescription${priceChanged ? " + price" : ""}`);
-    } else {
-      console.log(`  [Product] NOT FOUND in DB for sku="${product.code}" — would SKIP`);
+    const marketing = product.marketingContent;
+    if (marketing) {
+      if (marketing.seoTitle) updateData.seoTitle = marketing.seoTitle;
+      if (marketing.metaDescription)
+        updateData.metaDescription = marketing.metaDescription;
+      if (marketing.productDescription)
+        updateData.description = marketing.productDescription;
+      if (marketing.longProductDescription)
+        updateData.longDescription = marketing.longProductDescription;
     }
 
-    // Phase 2: color option stock
-    for (const variant of product.stockResults) {
-      const pco = await db.productColorOption.findFirst({
-        where: { sku: variant.itemCode },
-        select: { id: true, color: true, sku: true, stock: true, productId: true },
-      });
-
-      if (pco) {
-        const currentStock = pco.stock ? Number(pco.stock) : null;
-        const newStock = variant.quantity;
-        const changed = currentStock !== newStock;
-        console.log(`  [ColorOption] sku="${variant.itemCode}" color="${pco.color}" | stock: ${currentStock ?? "(null)"} → ${newStock}${changed ? " (CHANGED)" : " (no change)"}`);
-      } else {
-        console.log(`  [ColorOption] sku="${variant.itemCode}" — NOT FOUND in DB, would SKIP`);
+    const myGift = product.myGiftDetails;
+    if (myGift) {
+      const specParts: string[] = [];
+      if (myGift.material) specParts.push(`Material: ${myGift.material}`);
+      if (myGift.dimension) specParts.push(`Dimension: ${myGift.dimension}`);
+      if (myGift.weight) specParts.push(`Weight: ${myGift.weight}`);
+      if (myGift.finished) specParts.push(`Finished: ${myGift.finished}`);
+      if (myGift.function) specParts.push(`Function: ${myGift.function}`);
+      if (specParts.length > 0) {
+        updateData.specsDescription = specParts.join("\n");
+      }
+      if (myGift.images && myGift.images.length > 0) {
+        updateData.imageUrls = myGift.images;
       }
     }
 
-    console.log();
+    // Case-insensitive lookup
+    const dbProduct = await db.product.findFirst({
+      where: { sku: { equals: product.code, mode: "insensitive" } },
+      select: { id: true, name: true, sku: true },
+    });
+
+    if (dbProduct) {
+      productUpdates++;
+      log(`\n  db.product.update({`);
+      log(`    where: { id: "${dbProduct.id}" },  // "${dbProduct.name}" (sku: ${dbProduct.sku})`);
+      log(`    data: ${JSON.stringify(updateData, null, 6).replace(/\n/g, "\n    ")}`);
+      log(`  })\n`);
+    } else {
+      productSkips++;
+      log(`  SKIP — sku="${product.code}" not found in DB\n`);
+    }
+
+    // Color option updates
+    for (const variant of product.stockResults) {
+      const pco = await db.productColorOption.findFirst({
+        where: {
+          sku: { equals: variant.itemCode, mode: "insensitive" },
+        },
+        select: { id: true, color: true, sku: true, stock: true },
+      });
+
+      if (pco) {
+        colorUpdates++;
+        const currentStock = pco.stock ? Number(pco.stock) : null;
+        log(`  db.productColorOption.update({`);
+        log(`    where: { id: "${pco.id}" },  // color="${pco.color}" sku="${pco.sku}" currentStock=${currentStock}`);
+        log(`    data: { stock: ${variant.quantity} }`);
+        log(`  })\n`);
+      } else {
+        colorSkips++;
+        log(`  SKIP — colorOption sku="${variant.itemCode}" not found in DB\n`);
+      }
+    }
+
+    log(``);
   }
 
-  console.log("=== DRY RUN COMPLETE — no database writes were made ===\n");
+  log(`=== DRY RUN SUMMARY ===`);
+  log(`  Product updates: ${productUpdates}`);
+  log(`  Product skips (not in DB): ${productSkips}`);
+  log(`  Color option updates: ${colorUpdates}`);
+  log(`  Color option skips (not in DB): ${colorSkips}`);
+  log(`\n=== DRY RUN COMPLETE — no database writes were made ===`);
+  log(`Report saved to: ${REPORT_FILE}`);
+
   await db.$disconnect();
 }
 
-function getColorInHackyWay(description: string): string {
+function extractColor(description: string): string {
+  const match = description.match(
+    /\d+\s*(?:ML|L|OZ)\s+(.+?)\s+[A-Z]{2,}\s+\d+\s*$/i
+  );
+  if (match && match[1].trim()) {
+    return match[1].trim();
+  }
   const words = description.split(" ");
-  const colorWords = words.filter((word) => !/^[A-Z0-9]+$/.test(word));
-  return colorWords.join(" ");
+  return words.filter((w) => !/^[A-Z0-9]+$/.test(w)).join(" ");
 }
 
 main();
