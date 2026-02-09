@@ -7,8 +7,157 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ──────────────────────────────────────
+// Enums (common.prisma)
+// ──────────────────────────────────────
+
+enum CompanySize {
+  STARTUP
+  SMALL
+  MEDIUM
+  LARGE
+  ENTERPRISE
+}
+
+enum UserRole {
+  ADMIN
+  CUSTOMER
+  SENDER
+}
+
+enum TeamRole {
+  ADMIN
+  CAMPAIGN_MANAGER
+  SENDER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum RowStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  EXPIRED
+}
+
+enum CheckoutType {
+  CART
+  FORM
+}
+
+// ──────────────────────────────────────
+// Product & Catalog (product.prisma)
+// ──────────────────────────────────────
+
+model ProductCategory {
+  id                        String            @id
+  name                      String
+  slug                      String            @unique
+  description               String?
+  seoTitle                  String?
+  metaDescription           String?
+  h1Title                   String?
+  shortDescription          String?
+  longDescription           String?
+  internalLinks             String?
+  primaryKeywords           String?
+  userIntent                String?
+  triggerToBuy              String?
+  parentProductCategoryId   String?
+  sequence                  Int               @default(0)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  deletedAt                 DateTime?
+  importSource              String?
+  externalId                String?
+  faqs                      FAQ[]
+  parentProductCategory     ProductCategory?  @relation("ParentProductCategory", fields: [parentProductCategoryId], references: [id])
+  childrenProductCategories ProductCategory[] @relation("ParentProductCategory")
+  products                  Product[]         @relation("ProductToProductCategory")
+
+  @@index([importSource, externalId])
+  @@index([sequence])
+}
+
+model Product {
+  id                                String                             @id
+  name                              String                             @unique
+  slug                              String                             @unique
+  sku                               String                             @unique @default(cuid())
+  description                       String
+  longDescription                   String
+  price                             Decimal
+  seoTitle                          String?
+  imageUrls                         String[]
+  sizeOptions                       String[]
+  printTypeOptions                  String[]
+  inventorySkuId                    Int?
+  createdAt                         DateTime                           @default(now())
+  updatedAt                         DateTime                           @updatedAt
+  deletedAt                         DateTime?
+  metaDescription                   String?
+  specsDescription                  String?
+  stockDescription                  String?
+  supplier                          String?
+  oldCategory                       String?
+  inventorySku                      InventorySku?                      @relation(fields: [inventorySkuId], references: [id])
+  productColorOptions               ProductColorOption[]
+  productQuantityManufacturingRules ProductQuantityManufacturingRule[]
+  productQuantityPricingRules       ProductQuantityPricingRule[]
+  productSizeOptions                ProductSizeOption[]
+  printingOptions                   ProductPrintingOption[]            @relation("ProductToPrintingOption")
+  printingOptionPrices              ProductPrintingOptionPrice[]
+  productCategories                 ProductCategory[]                  @relation("ProductToProductCategory")
+}
+
+model ProductColorOption {
+  id              String    @id
+  color           String
+  hexCode         String?
+  additionalPrice Decimal
+  imageUrls       String[]  @default([])
+  frontImages     String[]  @default([])
+  backImages      String[]  @default([])
+  leftSideImages  String[]  @default([])
+  rightSideImages String[]  @default([])
+  productId       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  sku             String?
+  stock           Decimal?
+  colorTag        String?
+  colorGroup      String?
+  product         Product   @relation(fields: [productId], references: [id])
+
+  @@index([colorGroup])
+}
+
+model ProductSizeOption {
+  id              String    @id
+  size            String
+  additionalPrice Decimal
+  productId       String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  product         Product   @relation(fields: [productId], references: [id])
+}
+
 model FAQ {
-  id                String           @id
+  id                String           @id @default(cuid())
   question          String
   answer            String
   displayOrder      Int              @default(0)
@@ -16,99 +165,56 @@ model FAQ {
   isFeatured        Boolean          @default(false)
   productCategoryId String?
   createdAt         DateTime         @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime         @updatedAt
   deletedAt         DateTime?
-  ProductCategory   ProductCategory? @relation(fields: [productCategoryId], references: [id])
+  productCategory   ProductCategory? @relation(fields: [productCategoryId], references: [id])
 
-  @@index([displayOrder])
-  @@index([isActive, isFeatured])
   @@index([productCategoryId])
+  @@index([isActive, isFeatured])
+  @@index([displayOrder])
 }
 
-model Product {
-  id                               String                             @id
-  name                             String                             @unique
-  description                      String
-  price                            Decimal
-  imageUrls                        String[]
-  sizeOptions                      String[]
-  createdAt                        DateTime                           @default(now())
-  updatedAt                        DateTime
-  deletedAt                        DateTime?
-  printTypeOptions                 String[]
-  seoTitle                         String?
-  sku                              String                             @unique
-  slug                             String                             @unique
-  metaDescription                  String?
-  longDescription                  String
-  specsDescription                 String?
-  stockDescription                 String?
-  ProductColorOption               ProductColorOption[]
-  ProductQuantityManufacturingRule ProductQuantityManufacturingRule[]
-  ProductQuantityPricingRule       ProductQuantityPricingRule[]
-  ProductSizeOption                ProductSizeOption[]
-  ProductPrintingOption            ProductPrintingOption[]            @relation("ProductToPrintingOption")
-  ProductCategory                  ProductCategory[]                  @relation("ProductToProductCategory")
-}
-
-model ProductCategory {
-  id                      String            @id
-  name                    String
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime
-  deletedAt               DateTime?
-  description             String?
-  parentProductCategoryId String?
-  slug                    String            @unique
-  seoTitle                String?
-  metaDescription         String?
-  h1Title                 String?
-  shortDescription        String?
-  longDescription         String?
-  internalLinks           String?
-  primaryKeywords         String?
-  userIntent              String?
-  triggerToBuy            String?
-  FAQ                     FAQ[]
-  ProductCategory         ProductCategory?  @relation("ProductCategoryToProductCategory", fields: [parentProductCategoryId], references: [id])
-  other_ProductCategory   ProductCategory[] @relation("ProductCategoryToProductCategory")
-  Product                 Product[]         @relation("ProductToProductCategory")
-}
-
-model ProductColorOption {
-  id              String    @id
-  color           String
-  additionalPrice Decimal
-  productId       String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime
-  deletedAt       DateTime?
-  backImages      String[]  @default([])
-  frontImages     String[]  @default([])
-  hexCode         String?
-  imageUrls       String[]  @default([])
-  leftSideImages  String[]  @default([])
-  rightSideImages String[]  @default([])
-  sku             String?
-  stock           Decimal?
-  Product         Product   @relation(fields: [productId], references: [id])
-}
+// ──────────────────────────────────────
+// Printing (printing.prisma)
+// ──────────────────────────────────────
 
 model ProductPrintingOption {
-  id                         String                       @id
-  sku                        String                       @unique
-  printMethod                String
-  printLocation              String?
-  materialCost               Decimal
-  setupFee                   Decimal                      @default(0)
-  labourCost                 Decimal?                     @default(0)
-  createdAt                  DateTime                     @default(now())
-  updatedAt                  DateTime
-  deletedAt                  DateTime?
-  ProductPrintingPricingRule ProductPrintingPricingRule[]
-  Product                    Product[]                    @relation("ProductToPrintingOption")
+  id            String                         @id
+  sku           String                         @unique @default(cuid())
+  printMethod   String
+  printLocation String?
+  materialCost  Decimal
+  setupFee      Decimal                        @default(0)
+  labourCost    Decimal?                       @default(0)
+  createdAt     DateTime                       @default(now())
+  updatedAt     DateTime                       @updatedAt
+  deletedAt     DateTime?
+  pricingRules  ProductPrintingPricingRule[]
+  products      Product[]                      @relation("ProductToPrintingOption")
+  productPrices ProductPrintingOptionPrice[]
 
   @@index([printMethod])
+}
+
+model ProductPrintingOptionPrice {
+  id                      String               @id @default(cuid())
+  productId               String
+  productPrintingOptionId String
+  brandingOption           String?
+  brandingArea             String?
+  description              String?
+  type                     String?
+  unitPrice               Decimal
+  setupFee                Decimal              @default(0)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  deletedAt               DateTime?
+  product                 Product              @relation(fields: [productId], references: [id])
+  productPrintingOption   ProductPrintingOption @relation(fields: [productPrintingOptionId], references: [id])
+
+  @@unique([productId, productPrintingOptionId])
+  @@index([productId])
+  @@index([productPrintingOptionId])
 }
 
 model ProductPrintingPricingRule {
@@ -119,12 +225,16 @@ model ProductPrintingPricingRule {
   unitPrice               Decimal
   discountPercentage      Decimal?
   createdAt               DateTime              @default(now())
-  updatedAt               DateTime
+  updatedAt               DateTime              @updatedAt
   deletedAt               DateTime?
-  ProductPrintingOption   ProductPrintingOption @relation(fields: [productPrintingOptionId], references: [id])
+  productPrintingOption   ProductPrintingOption @relation(fields: [productPrintingOptionId], references: [id])
 
   @@index([productPrintingOptionId, minimumQuantity])
 }
+
+// ──────────────────────────────────────
+// Pricing (pricing.prisma)
+// ──────────────────────────────────────
 
 model ProductQuantityManufacturingRule {
   id                String    @id
@@ -133,9 +243,9 @@ model ProductQuantityManufacturingRule {
   maximumQuantity   Int?
   manufacturingDays Int
   createdAt         DateTime  @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime  @updatedAt
   deletedAt         DateTime?
-  Product           Product   @relation(fields: [productId], references: [id])
+  product           Product   @relation(fields: [productId], references: [id])
 }
 
 model ProductQuantityPricingRule {
@@ -146,26 +256,124 @@ model ProductQuantityPricingRule {
   unitPrice          Decimal
   discountPercentage Decimal?
   createdAt          DateTime  @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
-  Product            Product   @relation(fields: [productId], references: [id])
+  product            Product   @relation(fields: [productId], references: [id])
 
   @@index([productId, minimumQuantity])
 }
 
-model ProductSizeOption {
-  id              String    @id
-  size            String
-  additionalPrice Decimal
-  productId       String
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime
-  deletedAt       DateTime?
-  Product         Product   @relation(fields: [productId], references: [id])
+// ──────────────────────────────────────
+// Inventory SKU (inventory-sku.prisma)
+// ──────────────────────────────────────
+
+model InventorySku {
+  id        Int       @id @default(autoincrement())
+  code      String?   @unique
+  stock     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  items     Item[]
+  products  Product[]
 }
 
-model account {
-  id                    String    @id
+// ──────────────────────────────────────
+// Items (item.prisma)
+// ──────────────────────────────────────
+
+model ItemCategory {
+  id          String   @id(map: "item_categories_pkey") @default(cuid())
+  code        String   @unique(map: "item_categories_code_key")
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       Item[]
+}
+
+model Item {
+  id                       String          @id(map: "items_pkey") @default(cuid())
+  legacyAirtableId         String?         @unique
+  itemName                 String          @unique(map: "items_itemName_key")
+  categoryId               String
+  inventorySkuId           Int?
+  stock                    Int
+  cost                     Decimal         @db.Decimal(10, 2)
+  sellingPrice             Decimal         @db.Decimal(10, 2)
+  itemPhotos               String[]
+  itemDescription          String?
+  supplierId               String?
+  thresholdToOrderNewStock Int
+  isActive                 Boolean         @default(true)
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  giftSetItems             GiftSetItem[]
+  stockMovements           StockMovement[]
+  inventorySku             InventorySku?   @relation(fields: [inventorySkuId], references: [id])
+  category                 ItemCategory    @relation(fields: [categoryId], references: [id], map: "items_categoryId_fkey")
+}
+
+// ──────────────────────────────────────
+// Stock Movement (stock-movement.prisma)
+// ──────────────────────────────────────
+
+enum StockMovementStatus {
+  PROCURING
+  RECEIVED
+  STOCK_TAKE
+  STOCK_REMOVAL
+}
+
+model StockMovement {
+  id              String              @id @default(cuid())
+  itemId          String
+  quantity        Int
+  procurementDate DateTime?
+  remarks         String?
+  status          StockMovementStatus
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdBy       String?
+
+  item Item @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@index([itemId])
+  @@index([status])
+}
+
+// ──────────────────────────────────────
+// User / Auth (user.prisma)
+// ──────────────────────────────────────
+
+model User {
+  id                    String                 @id(map: "user_pkey")
+  name                  String
+  email                 String                 @unique(map: "user_email_key")
+  emailVerified         Boolean
+  image                 String?
+  role                  String                 @default("user")
+  createdAt             DateTime
+  updatedAt             DateTime
+  accounts              Account[]
+  giftSetVisibilityTags GiftSetVisibilityTag[]
+  sessions              Session[]
+}
+
+model Session {
+  id        String   @id(map: "session_pkey")
+  expiresAt DateTime
+  token     String   @unique(map: "session_token_key")
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "session_userId_fkey")
+}
+
+model Account {
+  id                    String    @id(map: "account_pkey")
   accountId             String
   providerId            String
   userId                String
@@ -178,11 +386,670 @@ model account {
   password              String?
   createdAt             DateTime
   updatedAt             DateTime
-  user                  user      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "account_userId_fkey")
 }
 
-model infinity_financial_advisor_event_order {
-  id                    String    @id
+model Verification {
+  id         String    @id(map: "verification_pkey")
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+}
+
+// ──────────────────────────────────────
+// GMS Users (gms.prisma)
+// ──────────────────────────────────────
+
+model GmsUser {
+  id          String      @id(map: "gms_users_pkey") @default(cuid())
+  clerkId     String?     @unique(map: "gms_users_clerkId_key")
+  email       String      @unique(map: "gms_users_email_key")
+  phoneNumber String?
+  firstName   String?
+  lastName    String?
+  role        GmsUserRole @default(SENDER)
+  companyId   String?
+
+  referralCode          String?   @unique
+  referralDiscount      Decimal   @default(5) @db.Decimal(5, 2)
+  refererId             String?
+  referralCodeInputDate DateTime?
+
+  ///from referral rewards upon reaching last milestone
+  isVip Boolean @default(false)
+
+  //from airtable, to help with migrations
+  legacyAirtableId String? @unique
+  linkToken        String? @unique
+
+  referer   GmsUser?  @relation("UserReferrals", fields: [refererId], references: [id], onDelete: SetNull)
+  referrals GmsUser[] @relation("UserReferrals")
+
+  referrerMilestones ReferralMilestone[] @relation("ReferrerMilestones")
+
+  perpetualCreditsAsReferrer UserCreditsTransaction[] @relation("PerpetualCreditReferrer")
+  perpetualCreditsAsReferee  UserCreditsTransaction[] @relation("PerpetualCreditReferee")
+
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  campaigns   Campaign[]
+  orders      Order[]
+  userCredits UserCredits?
+  emails      GmsUserEmail[]
+}
+
+model GmsUserEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  user      GmsUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum GmsUserRole {
+  ADMIN
+  CUSTOMER
+  SENDER
+}
+
+// ──────────────────────────────────────
+// Company & Discount (company.prisma)
+// ──────────────────────────────────────
+
+model Company {
+  id                     String                          @id(map: "companies_pkey") @default(cuid())
+  legacyAirtableId       String?                         @unique
+  name                   String                          @unique(map: "companies_name_key")
+  isActive               Boolean                         @default(true)
+  createdAt              DateTime                        @default(now())
+  updatedAt              DateTime                        @updatedAt
+  logo                   String?
+  slug                   String                          @unique(map: "companies_slug_key") @default("")
+  discountId             String?
+  discount               Discount?                       @relation(fields: [discountId], references: [id], onDelete: SetNull)
+  campaigns              Campaign[]
+  forms                  Form[]
+  giftSetVisibilityTags  GiftSetVisibilityTag[]
+  visibilityTagCompanies GiftSetVisibilityTagToCompany[]
+  gmsUsers               GmsUser[]
+
+  @@index([discountId])
+}
+
+model Discount {
+  id                String            @id @default(cuid())
+  name              String
+  description       String?
+  percentage        Decimal           @db.Decimal(5, 2)
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  companies         Company[]
+  formOrders        FormOrder[]
+  orders            Order[]
+  giftSetCategories GiftSetCategory[]
+  orderGiftSets     OrderGiftSet[]
+}
+
+// ──────────────────────────────────────
+// Campaign (campaign.prisma)
+// ──────────────────────────────────────
+
+model Campaign {
+  id               String        @id @default(cuid())
+  legacyAirtableId String?       @unique
+  scope            CampaignScope @default(USER)
+  companyId        String?
+  createdBy        String?
+  name             String
+  description      String?
+  startDate        DateTime?
+  endDate          DateTime?
+  frontPostCardUrl String?
+  backPostCardUrl  String?
+  boxUrl           String?
+  userPhotos       String[]
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  company          Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator          GmsUser?      @relation(fields: [createdBy], references: [id])
+  orders           Order[]
+
+  @@unique([companyId, name])
+}
+
+enum CampaignScope {
+  GLOBAL
+  COMPANY
+  USER
+}
+
+// ──────────────────────────────────────
+// Gift Sets (gift-set.prisma)
+// ──────────────────────────────────────
+
+model GiftSet {
+  id                 String                          @id(map: "gift_sets_pkey") @default(cuid())
+  legacyAirtableId   String?                         @unique
+  name               String                          @unique(map: "gift_sets_name_key")
+  code               String?
+  giftSetPricing     Decimal                         @db.Decimal(10, 2)
+  giftSetPhoto       String?
+  giftSetPhotos      String[]                        @default([])
+  giftSetDescription String?
+  isFavorite         Boolean                         @default(false)
+  isActive           Boolean                         @default(true)
+  createdAt          DateTime                        @default(now())
+  updatedAt          DateTime                        @updatedAt
+  giftSetNumber      Int                             @unique @default(autoincrement())
+  categoryId         String?
+  category           GiftSetCategory?                @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  cartItems          CartItem[]
+  visibilityTags     GiftSetVisibilityTag[]
+  visibilityTagLinks GiftSetVisibilityTagToGiftSet[]
+  formOrderDetails   FormOrderDetail[]
+  forms              FormToGiftSet[]
+  giftSetItems       GiftSetItem[]
+  orderDetails       OrderDetail[]
+  orderGiftSets      OrderGiftSet[]
+}
+
+model GiftSetItem {
+  id        String   @id(map: "gift_set_items_pkey") @default(cuid())
+  giftSetId String
+  itemId    String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  giftSet   GiftSet  @relation(fields: [giftSetId], references: [id], onDelete: Cascade, map: "gift_set_items_giftSetId_fkey")
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade, map: "gift_set_items_itemId_fkey")
+
+  @@unique([giftSetId, itemId], map: "gift_set_items_giftSetId_itemId_key")
+}
+
+model GiftSetCategory {
+  id               String    @id(map: "gift_set_categories_pkey") @default(cuid())
+  legacyAirtableId String?   @unique
+  name             String    @unique(map: "gift_set_categories_name_key")
+  description      String?
+  type             String
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  discountId       String?
+  discount         Discount? @relation(fields: [discountId], references: [id], onDelete: SetNull)
+  giftSets         GiftSet[]
+
+  @@index([discountId])
+}
+
+// ──────────────────────────────────────
+// Gift Set Visibility (gift-set-visibility.prisma)
+// ──────────────────────────────────────
+
+model GiftSetVisibilityTag {
+  id               String                          @id @default(cuid())
+  legacyAirtableId String?                         @unique
+  name             String                          @default("Tag")
+  description      String?
+  type             String                          @default("GENERIC")
+  giftSetId        String?
+  giftSet          GiftSet?                        @relation(fields: [giftSetId], references: [id], onDelete: Cascade)
+  giftSets         GiftSetVisibilityTagToGiftSet[]
+  companyId        String?
+  company          Company?                        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companies        GiftSetVisibilityTagToCompany[]
+  userId           String?
+  user             User?                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+
+  @@unique([giftSetId, companyId])
+  @@unique([giftSetId, userId])
+  @@index([companyId])
+  @@index([userId])
+  @@index([giftSetId])
+}
+
+model GiftSetVisibilityTagToGiftSet {
+  id                     String               @id @default(cuid())
+  giftSetVisibilityTagId String
+  giftSetId              String
+  giftSetVisibilityTag   GiftSetVisibilityTag @relation(fields: [giftSetVisibilityTagId], references: [id], onDelete: Cascade)
+  giftSet                GiftSet              @relation(fields: [giftSetId], references: [id], onDelete: Cascade)
+  createdAt              DateTime             @default(now())
+
+  @@unique([giftSetVisibilityTagId, giftSetId])
+  @@index([giftSetId])
+  @@index([giftSetVisibilityTagId])
+}
+
+model GiftSetVisibilityTagToCompany {
+  id                     String               @id @default(cuid())
+  giftSetVisibilityTagId String
+  companyId              String
+  giftSetVisibilityTag   GiftSetVisibilityTag @relation(fields: [giftSetVisibilityTagId], references: [id], onDelete: Cascade)
+  company                Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt              DateTime             @default(now())
+
+  @@unique([giftSetVisibilityTagId, companyId])
+  @@index([companyId])
+  @@index([giftSetVisibilityTagId])
+}
+
+// ──────────────────────────────────────
+// Cart (cart.prisma)
+// ──────────────────────────────────────
+
+model CartItem {
+  id        String   @id @default(cuid())
+  userId    String
+  giftSetId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  giftSet   GiftSet  @relation(fields: [giftSetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, giftSetId])
+  @@index([userId])
+}
+
+// ──────────────────────────────────────
+// Forms (form.prisma)
+// ──────────────────────────────────────
+
+model Form {
+  id               String          @id(map: "forms_pkey") @default(cuid())
+  title            String
+  slug             String
+  description      String?
+  startDate        DateTime
+  endDate          DateTime
+  banners          String[]
+  companyId        String
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  /// [AdditionalFieldsType]
+  additionalFields Json?
+  /// [CustomBehaviorsType]
+  customBehaviors  Json?
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade, map: "forms_companyId_fkey")
+  formOrders       FormOrder[]
+  giftSets         FormToGiftSet[]
+  addOns           FormAddOn[]
+
+  @@unique([slug, companyId], map: "forms_slug_companyId_key")
+  @@unique([title, companyId], map: "forms_title_companyId_key")
+}
+
+model FormToGiftSet {
+  formId      String
+  giftSetId   String
+  maxQuantity Decimal?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade, map: "form_to_gift_sets_formId_fkey")
+  giftSet     GiftSet  @relation(fields: [giftSetId], references: [id], onDelete: Cascade, map: "form_to_gift_sets_giftSetId_fkey")
+
+  @@id([formId, giftSetId], map: "form_to_gift_sets_pkey")
+}
+
+// this must not be used for Application logic, this is only raw data for tracking, use Order table instead
+model FormOrder {
+  id                   String            @id(map: "form_orders_pkey") @default(cuid())
+  formId               String
+  customerEmail        String
+  customerPhone        String?
+  deliveryAddress      String?
+  notes                String?
+  totalAmount          Decimal           @db.Decimal(12, 2)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  publicId             String            @unique(map: "form_orders_publicId_key")
+  deliveryType         DeliveryType      @default(MULTIPLE_RECIPIENTS)
+  customerFirstName    String
+  customerLastName     String
+  discountId           String?
+  /// [AdditionalFieldsDataType]
+  additionalFieldsData Json?
+  purchaseOrderId      Int?
+  purchaseOrder        PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
+  discount             Discount?         @relation(fields: [discountId], references: [id], map: "form_orders_discountId_fkey")
+  form                 Form              @relation(fields: [formId], references: [id], onDelete: Cascade, map: "form_orders_formId_fkey")
+  formOrderDetails     FormOrderDetail[]
+  order                Order?
+}
+
+model FormOrderDetail {
+  id          String    @id(map: "form_order_details_pkey") @default(cuid())
+  formOrderId String
+  giftSetId   String
+  quantity    Int       @default(1)
+  unitPrice   Decimal   @db.Decimal(10, 2)
+  subtotal    Decimal   @db.Decimal(12, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  formOrder   FormOrder @relation(fields: [formOrderId], references: [id], onDelete: Cascade, map: "form_order_details_formOrderId_fkey")
+  giftSet     GiftSet   @relation(fields: [giftSetId], references: [id], map: "form_order_details_giftSetId_fkey")
+}
+
+// ──────────────────────────────────────
+// Orders (order.prisma)
+// ──────────────────────────────────────
+
+model Order {
+  id                    String         @id @default(cuid())
+  legacyAirtableId      String?        @unique
+  campaignId            String?
+  gmsUserId             String?
+  notes                 String?
+  internalRemarks       String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  formOrderId           String?        @unique
+  deliveryOrderId       Int?
+  deliveryType          DeliveryType?
+  deliveryOption        DeliveryOption @default(FOLLOW_SUBMISSION)
+  scheduledDeliveryDate String?
+  defaultGreeting       String?
+  defaultMessage        String?
+  defaultSignOff        String?
+  purchaseOrderId       Int?
+  deliveryAddress       String?
+
+  // Pricing fields (moved from PurchaseOrder)
+  referralCode               String?
+  referralDiscountPercentage Decimal? @db.Decimal(5, 2)
+  referralDiscountAmount     Decimal? @db.Decimal(12, 2)
+  subtotal                   Decimal  @default(0) @db.Decimal(12, 2)
+  discountAmount             Decimal  @default(0) @db.Decimal(12, 2)
+  categoryDiscountAmount     Decimal  @default(0) @db.Decimal(12, 2)
+  deliveryDiscount           Decimal? @db.Decimal(12, 2)
+  deliveryFee                Decimal? @db.Decimal(12, 2)
+  creditAmountUsed           Decimal  @default(0) @db.Decimal(12, 2)
+  totalAmount                Decimal  @default(0) @db.Decimal(12, 2)
+
+  // Discount relation (moved from PurchaseOrder)
+  discountId String?
+  discount   Discount? @relation(fields: [discountId], references: [id])
+
+  campaign      Campaign?      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliveryOrder DeliveryOrder? @relation(fields: [deliveryOrderId], references: [id])
+  formOrder     FormOrder?     @relation(fields: [formOrderId], references: [id])
+  gmsUser       GmsUser?       @relation(fields: [gmsUserId], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  orderDetails  OrderDetail[]
+  orderGiftSets OrderGiftSet[]
+  orderAddOns   OrderAddOn[]
+}
+
+model OrderGiftSet {
+  id                  String    @id @default(cuid())
+  orderId             String
+  giftSetId           String
+  quantity            Int
+  unitPrice           Decimal   @db.Decimal(10, 2)
+  subtotal            Decimal   @db.Decimal(12, 2)
+  discountId          String?
+  discountPercentage  Decimal?  @db.Decimal(5, 2)
+  discountAmount      Decimal?  @db.Decimal(12, 2)
+  totalAmount         Decimal   @db.Decimal(12, 2)
+  isRedemption        Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  discount            Discount? @relation(fields: [discountId], references: [id], onDelete: SetNull)
+  giftSet             GiftSet   @relation(fields: [giftSetId], references: [id])
+  order               Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderDetails        OrderDetail[]
+
+  @@unique([orderId, giftSetId])
+  @@index([discountId])
+}
+
+model OrderDetail {
+  id               String         @id @default(cuid())
+  orderId          String
+  orderRecipientId String
+  giftSetId        String
+  orderGiftSetId   String?
+  quantity         Int            @default(1)
+  unitPrice        Decimal        @db.Decimal(10, 2)
+  subtotal         Decimal        @db.Decimal(12, 2)
+  deletedAt        DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  giftSet          GiftSet        @relation(fields: [giftSetId], references: [id])
+  order            Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderGiftSet     OrderGiftSet?  @relation(fields: [orderGiftSetId], references: [id], onDelete: SetNull)
+  orderRecipient   OrderRecipient @relation(fields: [orderRecipientId], references: [id], onDelete: Cascade)
+
+  @@index([orderGiftSetId])
+}
+
+model OrderRecipient {
+  id                   String                @id @default(cuid())
+  name                 String?
+  preferredName        String?
+  phoneNumber          String?
+  address              String?
+  unitNumber           String?
+  postalCode           String?
+  deliveryDate         String?
+  message              String?
+  additionalRemarks    String?
+  deletedAt            DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  deliveryOrderId      Int?
+  orderDetails         OrderDetail[]
+  deliveryOrder        DeliveryOrder?        @relation(fields: [deliveryOrderId], references: [id])
+  orderRecipientAddOns OrderRecipientAddOn[]
+}
+
+enum DeliveryOption {
+  FOLLOW_SUBMISSION
+  FOLLOW_CAMPAIGN
+  ASAP
+  SCHEDULED
+}
+
+enum DeliveryType {
+  MULTIPLE_RECIPIENTS
+  SINGLE_LOCATION
+  SELF_PICKUP
+  OTHER
+}
+
+// ──────────────────────────────────────
+// Add-Ons (add-on.prisma)
+// ──────────────────────────────────────
+
+model AddOn {
+  id                   String                @id @default(cuid())
+  name                 String                @unique
+  description          String?
+  unitPrice            Decimal               @db.Decimal(10, 2)
+  imageUrl             String?
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  formAddOns           FormAddOn[]
+  orderAddOns          OrderAddOn[]
+  orderRecipientAddOns OrderRecipientAddOn[]
+}
+
+model FormAddOn {
+  id          String   @id @default(cuid())
+  formId      String
+  addOnId     String
+  maxQuantity Int?
+  isRequired  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  addOn       AddOn    @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, addOnId])
+  @@index([formId])
+  @@index([addOnId])
+}
+
+model OrderAddOn {
+  id        String   @id @default(cuid())
+  orderId   String
+  addOnId   String
+  quantity  Int      @default(1)
+  unitPrice Decimal  @db.Decimal(10, 2)
+  subtotal  Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  addOn     AddOn    @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, addOnId])
+  @@index([orderId])
+  @@index([addOnId])
+}
+
+model OrderRecipientAddOn {
+  id               String         @id @default(cuid())
+  orderRecipientId String
+  addOnId          String
+  quantity         Int            @default(1)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  orderRecipient   OrderRecipient @relation(fields: [orderRecipientId], references: [id], onDelete: Cascade)
+  addOn            AddOn          @relation(fields: [addOnId], references: [id], onDelete: Cascade)
+
+  @@unique([orderRecipientId, addOnId])
+  @@index([orderRecipientId])
+  @@index([addOnId])
+}
+
+// ──────────────────────────────────────
+// Delivery Order (delivery-order.prisma)
+// ──────────────────────────────────────
+
+model DeliveryOrder {
+  id           Int                 @id @default(autoincrement())
+  code         String?             @unique
+  status       DeliveryOrderStatus @default(PENDING_PROCESSING)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  address      String?
+  name         String?
+  phoneNumber  String?
+  postalCode   String?
+  deliveryDate String?
+  deletedAt    DateTime?
+
+  /// [AddOnSummaryType]
+  addOnSummary    Json?
+  orders          Order[]
+  orderRecipients OrderRecipient[]
+
+  // SPX Integration (1:1 relation)
+  spxDelivery SpxDelivery?
+}
+
+/// Colors: @workspace/ui/lib/status-colors → DELIVERY_ORDER_STATUS_CONFIG
+enum DeliveryOrderStatus {
+  PENDING_PROCESSING
+  PROCESSING
+  READY_TO_PACK
+  PACKING
+  READY_FOR_DELIVERY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  ON_HOLD
+  FAILED_DELIVERY
+  RETURNED
+}
+
+// ──────────────────────────────────────
+// SPX Delivery (spx-delivery.prisma)
+// ──────────────────────────────────────
+
+model SpxDelivery {
+  id               Int      @id @default(autoincrement())
+  deliveryOrderId  Int      @unique
+  trackingNo       String?  @unique
+  trackingLink     String?
+  status           String?
+  statusCode       String?
+  shippingFee      Decimal? @db.Decimal(10, 2)
+  chargeableWeight Decimal? @db.Decimal(10, 3)
+  actualWeight     Decimal? @db.Decimal(10, 3)
+  /// [SpxEvidenceProofs]
+  evidenceProofs   Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  deliveryOrder DeliveryOrder @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+}
+
+// ──────────────────────────────────────
+// Purchase Order (purchase-order.prisma)
+// ──────────────────────────────────────
+
+model PurchaseOrder {
+  id                    Int                 @id @default(autoincrement())
+  code                  String              @unique
+  status                PurchaseOrderStatus @default(ORDER_RECEIVED)
+  paymentStatus         PaymentStatus       @default(PENDING)
+  stripeSessionId       String?             @unique
+  stripePaymentIntentId String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  formOrders              FormOrder[]
+  orders                  Order[]
+  stripeEventLogs         StripeEventLog[]
+  userCreditsTransactions UserCreditsTransaction[]
+}
+
+/// Colors: @workspace/ui/lib/status-colors → PURCHASE_ORDER_STATUS_CONFIG
+enum PurchaseOrderStatus {
+  ORDER_RECEIVED
+  READY_TO_PROCESS
+  PROCESSING
+  COMPLETED
+  ON_HOLD
+  CANCELLED
+}
+
+// ──────────────────────────────────────
+// Integration (integration.prisma)
+// ──────────────────────────────────────
+
+model StripeEventLog {
+  id              String         @id(map: "stripe_event_logs_pkey") @default(cuid())
+  stripeEventId   String         @unique(map: "stripe_event_logs_stripeEventId_key")
+  eventType       String
+  purchaseOrderId Int?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  rawPayload      Json?
+  processed       Boolean        @default(true)
+  errorMessage    String?
+  createdAt       DateTime       @default(now())
+
+  @@index([stripeEventId], map: "stripe_event_logs_stripeEventId_idx")
+  @@index([purchaseOrderId])
+  @@index([eventType])
+}
+
+model InfinityFinancialAdvisorEventOrder {
+  id                    String    @id(map: "infinity_financial_advisor_event_order_pkey") @default(cuid())
   firstName             String
   lastName              String
   phoneNumber           String
@@ -194,48 +1061,148 @@ model infinity_financial_advisor_event_order {
   personalHotstamping   Boolean   @default(false)
   totalOrderSum         Decimal
   createdAt             DateTime  @default(now())
-  updatedAt             DateTime
+  updatedAt             DateTime  @updatedAt
   deletedAt             DateTime?
-  publicId              String    @unique
+  publicId              String    @unique(map: "infinity_financial_advisor_event_order_publicId_key")
   hotstampContactNumber String?
   hotstampEmail         String?
   hotstampName          String?
   hotstampDesignation   String?
 
-  @@index([createdAt])
-  @@index([email])
+  @@index([createdAt], map: "infinity_financial_advisor_event_order_createdAt_idx")
+  @@index([email], map: "infinity_financial_advisor_event_order_email_idx")
 }
 
-model session {
-  id        String   @id
-  expiresAt DateTime
-  token     String   @unique
-  createdAt DateTime
-  updatedAt DateTime
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// ──────────────────────────────────────
+// Config (config.prisma)
+// ──────────────────────────────────────
+
+model AiPromptConfig {
+  id        String   @id @default("ai-category-mapper")
+  prompt    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model user {
-  id            String    @id
-  name          String
-  email         String    @unique
-  emailVerified Boolean
-  image         String?
-  createdAt     DateTime
-  updatedAt     DateTime
-  role          String    @default("user")
-  account       account[]
-  session       session[]
+// ──────────────────────────────────────
+// Referral Milestones (referral-milestone.prisma)
+// ──────────────────────────────────────
+
+model ReferralMilestone {
+  id           String   @id @default(cuid())
+  referrerId   String   @unique
+  currentLevel Int      @default(0)
+  totalSpent   Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  referrer GmsUser                  @relation("ReferrerMilestones", fields: [referrerId], references: [id])
+  claims   ReferralMilestoneClaim[]
 }
 
-model verification {
-  id         String    @id
-  identifier String
-  value      String
-  expiresAt  DateTime
-  createdAt  DateTime?
-  updatedAt  DateTime?
+model PerpetualTier {
+  id           Int      @id @default(autoincrement())
+  minReferrals Int      @unique
+  percentage   Decimal  @db.Decimal(5, 4)
+  label        String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model MilestoneThreshold {
+  id                        Int      @id @default(autoincrement())
+  level                     Int      @unique
+  minSpent                  Decimal  @db.Decimal(10, 2)
+  creditAmount              Decimal  @db.Decimal(10, 2)
+  physicalRewardDescription String?
+  isActive                  Boolean  @default(true)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model ReferralMilestoneClaim {
+  id                  String                       @id @default(cuid())
+  referralMilestoneId String
+  level               Int
+  creditAmount        Int?
+  physicalReward      String?
+  status              ReferralMilestoneClaimStatus @default(PENDING)
+  createdAt           DateTime                     @default(now())
+  deliveryAddress     String?
+  deliveryPhone       String?
+  deliveryNotes       String?
+  claimedAt           DateTime?
+  fulfilledAt         DateTime?
+
+  referralMilestone ReferralMilestone @relation(fields: [referralMilestoneId], references: [id])
+
+  @@unique([referralMilestoneId, level])
+}
+
+enum ReferralMilestoneClaimStatus {
+  PENDING
+  CLAIMED
+  CREDIT_ISSUED
+  FULFILLED
+}
+
+// ──────────────────────────────────────
+// Referral Share (referral-share.prisma)
+// ──────────────────────────────────────
+
+model ReferralShareClick {
+  id        String   @id @default(cuid())
+  userEmail String
+  shareType String
+  year      Int
+  month     Int
+  createdAt DateTime @default(now())
+
+  @@index([year, month])
+}
+
+// ──────────────────────────────────────
+// User Credits (user-credits.prisma)
+// ──────────────────────────────────────
+
+model UserCredits {
+  id           String                   @id @default(uuid())
+  gmsUserId    String                   @unique
+  balance      Decimal                  @default(0) @db.Decimal(12, 2)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  gmsUser      GmsUser                  @relation(fields: [gmsUserId], references: [id], onDelete: Cascade)
+  transactions UserCreditsTransaction[]
+}
+
+model UserCreditsTransaction {
+  id              String                     @id @default(uuid())
+  userCreditsId   String
+  note            String?
+  purchaseOrderId Int?
+  type            UserCreditsTransactionType
+  amount          Decimal                    @db.Decimal(12, 2)
+  referrerId      String?
+  refereeId       String?
+  percentageRate  Decimal?                   @db.Decimal(5, 4)
+  createdAt       DateTime                   @default(now())
+  userCredits     UserCredits                @relation(fields: [userCreditsId], references: [id], onDelete: Cascade)
+  purchaseOrder   PurchaseOrder?             @relation(fields: [purchaseOrderId], references: [id])
+  referrer        GmsUser?                   @relation("PerpetualCreditReferrer", fields: [referrerId], references: [id])
+  referee         GmsUser?                   @relation("PerpetualCreditReferee", fields: [refereeId], references: [id])
+
+  @@index([userCreditsId, createdAt])
+  @@index([purchaseOrderId])
+  @@index([referrerId])
+  @@index([refereeId])
+}
+
+enum UserCreditsTransactionType {
+  REFERRAL_REWARD
+  PURCHASE_REDEMPTION
+  PURCHASE_REFUND
+  CREDIT_MANUAL_INCREMENT
+  CREDIT_MANUAL_DECREMENT
+  PERPETUAL_REFERRAL_CREDIT
 }
