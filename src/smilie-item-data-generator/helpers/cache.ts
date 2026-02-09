@@ -52,7 +52,7 @@ export function setCachedProduct(cache: CacheData, code: string, data: Partial<C
 
 export function hasCachedStockResults(cache: CacheData, code: string): boolean {
   const product = getCachedProduct(cache, code);
-  return !!(product?.stockResults && product.stockResults.length >= 0);
+  return !!(product?.stockResults && product.stockResults.length > 0);
 }
 
 export function hasCachedMyGiftDetails(cache: CacheData, code: string): boolean {
