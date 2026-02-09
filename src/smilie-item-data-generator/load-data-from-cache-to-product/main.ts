@@ -24,12 +24,15 @@ export async function loadDataFromCacheToProduct() {
           stockDescription
         );
 
+        const price = product.stockResults[0]?.price;
+
         await db.product.update({
           where: {
             sku: product.code,
           },
           data: {
             stockDescription,
+            ...(price != null ? { price } : {}),
           },
         });
 
