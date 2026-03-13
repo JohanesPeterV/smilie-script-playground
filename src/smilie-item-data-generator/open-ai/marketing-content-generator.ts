@@ -1,10 +1,10 @@
-import { getOptionalEnv } from "../helpers/env";
 import type { CacheData } from "../helpers/cache";
 import {
   getCachedProduct,
   hasCachedMarketingContent,
   setCachedProduct,
 } from "../helpers/cache";
+import { getOptionalEnv } from "../helpers/env";
 import type { MyGiftProductDetails, ProductMarketingContent } from "../types";
 
 export type OpenAIMarketingContentRequest = {
@@ -282,6 +282,10 @@ export class OpenAiMarketingContentGenerator {
               ],
             },
           ],
+          reasoning: {
+            effort: "low",
+            summary: "auto",
+          },
           response_format: { type: "json_object" },
           store: true,
         }),
