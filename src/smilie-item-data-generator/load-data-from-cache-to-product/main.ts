@@ -58,6 +58,7 @@ export async function loadDataFromCacheToProduct() {
           },
           data: {
             stockDescription,
+            updatedAt: new Date(),
           },
         });
 
@@ -96,6 +97,7 @@ export async function loadDataFromCacheToProduct() {
               },
               data: {
                 stock: productVariant.quantity,
+                updatedAt: new Date(),
               },
             });
 
