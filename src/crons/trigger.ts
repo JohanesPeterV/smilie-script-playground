@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { loadDataFromCacheToProduct } from "../smilie-item-data-generator/load-data-from-cache-to-product/main";
 
 console.log("[manual trigger] Starting loadDataFromCacheToProduct...");

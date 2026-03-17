@@ -1,8 +1,36 @@
-import cacheJson from "../../../cache.json";
 import { db } from "../../db";
+import loadProducts from "../data-loader/load-products";
+import {
+  createBrowser,
+  scrapeProducts,
+} from "../scrappers/product-variants-scraper";
+import type { StockRow } from "../types";
+
+type ScrapedProduct = {
+  code: string;
+  stockResults: StockRow[];
+};
 
 export async function loadDataFromCacheToProduct() {
-  const products = Object.values(cacheJson.products);
+  // Phase 0: scrape live stock from MyGift
+  console.log(`\n========================================`);
+  console.log(`[cron] Scraping live stock at ${new Date().toISOString()}`);
+  console.log(`========================================\n`);
+
+  const productList = loadProducts();
+  const browser = await createBrowser();
+  let products: ScrapedProduct[];
+  try {
+    const stockResults = await scrapeProducts(browser, productList, {
+      products: {},
+    });
+    products = stockResults.map((r) => ({
+      code: r.code,
+      stockResults: r.results,
+    }));
+  } finally {
+    await browser.close();
+  }
 
   const stats = {
     productUpdated: 0,
@@ -14,7 +42,7 @@ export async function loadDataFromCacheToProduct() {
   };
 
   console.log(`\n========================================`);
-  console.log(`[cron] Starting sync at ${new Date().toISOString()}`);
+  console.log(`[cron] Starting DB sync at ${new Date().toISOString()}`);
   console.log(`[cron] Products to process: ${products.length}`);
   console.log(`========================================\n`);
 
